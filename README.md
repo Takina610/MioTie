@@ -1,41 +1,41 @@
 <p align="center">
-  <img src="docs/images/logo.png?v=1.1.0" width="128" alt="FluxTie Logo" />
+  <img src="docs/images/logo.png?v=1.1.0" width="128" alt="MioTie Logo" />
 </p>
 
-<h1 align="center">FluxTie</h1>
+<h1 align="center">MioTie</h1>
 
 <p align="center">
   <strong>为兴趣而生</strong> —— 基于 TiebaLite 深度重构的非官方第三方贴吧客户端
 </p>
 
 <p align="center">
-  <a href="https://github.com/makise2060/FluxTie/releases"><img src="https://img.shields.io/github/v/release/makise2060/FluxTie?color=1e88e5&label=Release" alt="Release" /></a>
+  <a href="https://github.com/Takina610/MioTie/releases"><img src="https://img.shields.io/github/v/release/Takina610/MioTie?color=1e88e5&label=Release" alt="Release" /></a>
   <a href="https://developer.android.com/studio/releases/platforms#6.0"><img src="https://img.shields.io/badge/Android-6.0%2B%20(API%2023%2B)-3ddc84?logo=android&logoColor=white" alt="Android" /></a>
   <a href="https://kotlinlang.org"><img src="https://img.shields.io/badge/Kotlin-2.3-7f52ff?logo=kotlin&logoColor=white" alt="Kotlin" /></a>
   <a href="https://developer.android.com/jetpack/compose"><img src="https://img.shields.io/badge/Jetpack%20Compose-MaterialKolor-4285f4?logo=jetpackcompose&logoColor=white" alt="Jetpack Compose" /></a>
-  <a href="https://github.com/makise2060/FluxTie/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-red?logo=gnu&logoColor=white" alt="License" /></a>
+  <a href="https://github.com/Takina610/MioTie/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-red?logo=gnu&logoColor=white" alt="License" /></a>
 </p>
 
 > [!WARNING]
 > 本项目仅供学习交流，不用于商业用途；它不是百度或贴吧的官方客户端，相关商标与内容权利归其权利人所有。
 
 <p align="center">
-  <img src="docs/images/showcase_hero.png?v=1.1.0" alt="FluxTie 主视觉" />
+  <img src="docs/images/showcase_hero.png?v=1.1.0" alt="MioTie 主视觉" />
 </p>
 
 ## 项目简介
 
-FluxTie fork 自 [HuanCheng65/TiebaLite](https://github.com/HuanCheng65/TiebaLite)，并以 [zzc10086/TiebaLite](https://github.com/zzc10086/TiebaLite) 的 4.0-dev 分支为基础继续深度重构。项目保留贴吧客户端的核心能力，同时以 Jetpack Compose、MaterialKolor 与现代 Android 工具链重新打磨浏览、主题、动效和更新体验。
+MioTie fork 自 [makise2060/FluxTie](https://github.com/makise2060/FluxTie)，上游项目源自 [HuanCheng65/TiebaLite](https://github.com/HuanCheng65/TiebaLite) 并基于 [zzc10086/TiebaLite](https://github.com/zzc10086/TiebaLite) 的 4.0-dev 分支进行了深度重构。项目保留贴吧客户端的核心能力，同时以 Jetpack Compose、MaterialKolor 与现代 Android 工具链重新打磨浏览、主题、动效和更新体验。
 
 - 无自建内容后端，帖子、图片等贴吧业务数据直连官方接口。
 - 应用更新检查使用 GitHub Releases，不后台静默下载。
-- 应用 ID 为 <code>com.makise.fluxtie</code>，可与官方贴吧及原版 TiebaLite 共存。
-- 包名不同，因此不会接管原版数据；从原版迁移需重新登录并按需调整设置。
+- 应用 ID 为 <code>com.takina.miotie</code>，可与官方贴吧、原版 TiebaLite 及 FluxTie 共存。
+- 包名不同，因此不会接管原版或上游数据；从原版迁移需重新登录并按需调整设置。
 
 ## 核心特性
 
 <p align="center">
-  <img src="docs/images/feature_showcase.png?v=1.1.0" alt="FluxTie 核心特性" />
+  <img src="docs/images/feature_showcase.png?v=1.1.0" alt="MioTie 核心特性" />
 </p>
 
 - **双阶段流体启动**：系统启动屏与 Compose 启动覆盖层衔接，双水滴、贴字与星石构成完整启动动效。
@@ -59,12 +59,12 @@ FluxTie fork 自 [HuanCheng65/TiebaLite](https://github.com/HuanCheng65/TiebaLit
 </div>
 
 <p align="center">
-  <img src="docs/images/bento_grid_showcase.png?v=1.1.0" alt="FluxTie 设计看板" />
+  <img src="docs/images/bento_grid_showcase.png?v=1.1.0" alt="MioTie 设计看板" />
 </p>
 
 ## 相对原版的升级
 
-| 维度 | 原版 TiebaLite | FluxTie |
+| 维度 | 原版 TiebaLite | MioTie |
 | --- | --- | --- |
 | 界面方向 | 以既有 View/XML 界面为主 | 新 UI 以 Jetpack Compose 为主，逐步统一页面与组件 |
 | 主题系统 | 固定主题列表，部分调整不够即时 | MaterialKolor 种子色引擎，14 个预置色、9 种风格与实时预览 |
@@ -75,16 +75,16 @@ FluxTie fork 自 [HuanCheng65/TiebaLite](https://github.com/HuanCheng65/TiebaLit
 | 表情能力 | 基础表情与收藏 | 收藏/DIY 云端同步、编辑器渲染、长按预览与帖子评论展示 |
 | 应用更新 | 以手动下载安装为主 | GitHub Releases 检查、下载、安装与版本忽略 |
 | 工具链 | AGP 8.13、Gradle 8.14、compileSdk 36 | AGP 9.4、Gradle 9.7、Kotlin 2.3、compileSdk/targetSdk 37 |
-| 应用共存 | <code>com.huanchengfly.tieba.post</code> | <code>com.makise.fluxtie</code>，可与原版和官方客户端共存 |
+| 应用共存 | <code>com.huanchengfly.tieba.post</code> | <code>com.takina.miotie</code>，可与原版、官方客户端及 FluxTie 共存 |
 
 签到、多账号、发帖回帖、收藏、屏蔽、浏览记录、内置日志查看器等上游能力继续保留，并在新界面中逐步统一交互与视觉。
 
 ## 下载与安装
 
-1. 在 [Releases](https://github.com/makise2060/FluxTie/releases) 下载最新 APK。
+1. 在 [Releases](https://github.com/Takina610/MioTie/releases) 下载最新 APK。
 2. 最低支持 **Android 6.0（API 23）**。
 3. v1.0.3 起发布签名已统一，后续版本可正常覆盖升级；**v1.0.2 及更早版本升级前需先卸载**。
-4. FluxTie 与官方贴吧、原版 TiebaLite 包名不同，可直接共存安装。
+4. MioTie（包名 <code>com.takina.miotie</code>）与官方贴吧、原版 TiebaLite 及 FluxTie 均不同，可直接共存安装。
 
 CI 会基于 <code>v*</code> tag 自动构建 APK 并上传 Release；Release 正文与截图以发布页为准。
 
@@ -93,15 +93,15 @@ CI 会基于 <code>v*</code> tag 自动构建 APK 并上传 Release；Release �
 要求 **JDK 17+**、Android SDK 与可执行 Gradle Wrapper 的环境。
 
 ~~~bash
-git clone https://github.com/makise2060/FluxTie.git
-cd FluxTie
+git clone https://github.com/Takina610/MioTie.git
+cd MioTie
 ./gradlew assembleDebug
 ~~~
 
 Debug APK 输出位置：
 
 ~~~text
-app/build/outputs/apk/debug/FluxTie-v{version}.apk
+app/build/outputs/apk/debug/MioTie-v{version}.apk
 ~~~
 
 本地 SDK 路径通过 <code>local.properties</code> 的 <code>sdk.dir</code> 配置；Release 构建会启用 R8 与资源收缩。
@@ -129,15 +129,17 @@ app/build/outputs/apk/debug/FluxTie-v{version}.apk
   <img src="docs/images/linuxdo_thanks.png?v=1.1.0" alt="感谢 Linux.do 社区" />
 </p>
 
-FluxTie 的开发与迭代离不开 [Linux.do](https://linux.do/) 社区。感谢分享搞机经验、讨论设计方向、试用开发版并反馈问题的每一位朋友；你们的真诚、友善、团结与专业，让这个项目得以持续完善。
+MioTie 的开发与迭代离不开 [Linux.do](https://linux.do/) 社区。感谢分享搞机经验、讨论设计方向、试用开发版并反馈问题的每一位朋友；你们的真诚、友善、团结与专业，让这个项目得以持续完善。
 
 ## 致谢
 
-- [HuanCheng65/TiebaLite](https://github.com/HuanCheng65/TiebaLite)：原作。
-- [zzc10086/TiebaLite](https://github.com/zzc10086/TiebaLite)：本项目所基于的 4.0-dev 分支。
+- [makise2060/FluxTie](https://github.com/makise2060/FluxTie)：直接上游项目，贡献了 Material 3 体系、Jetpack Compose 架构重构、MaterialKolor 种子配色、流体启动与悬浮底栏等核心特性。
+- [HuanCheng65/TiebaLite](https://github.com/HuanCheng65/TiebaLite)：原作，奠定了贴吧第三方轻量客户端的基础架构。
+- [zzc10086/TiebaLite](https://github.com/zzc10086/TiebaLite)：上游所基于的 4.0-dev 分支。
 - [Lingyan000/fluxdo](https://github.com/Lingyan000/fluxdo)：外观与界面设计参考。
+- [appshubcc/Bettbox](https://github.com/appshubcc/Bettbox)：设置页与底栏交互设计参考。
 - [aiotieba](https://github.com/Starry-OvO/aiotieba) 与 [tbclient.protobuf](https://github.com/n0099/tbclient.protobuf)：贴吧协议研究参考。
 
 ## License
 
-[GPL-3.0](LICENSE) © 原作者及 FluxTie 贡献者。
+[GPL-3.0](LICENSE) © 原作者、FluxTie 及 MioTie 贡献者。

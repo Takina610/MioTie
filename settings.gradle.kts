@@ -34,5 +34,5 @@ refreshVersions {
     }
 }
 
-rootProject.name = "FluxTie"
+rootProject.name = "MioTie"
 include(":app")

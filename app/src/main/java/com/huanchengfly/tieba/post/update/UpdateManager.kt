@@ -158,7 +158,7 @@ class UpdateManager @Inject constructor(
             var lastNotifiedPercent = -1
             var lastNotifyAt = 0L
             runCatching {
-                downloader.download(asset.url, "FluxTie-v${release.version}.apk") { read, total ->
+                downloader.download(asset.url, "MioTie-v${release.version}.apk") { read, total ->
                     val indeterminate = total <= 0
                     val percent = if (indeterminate) 0 else (read * 100 / total).toInt().coerceIn(0, 100)
                     _state.value = UpdateUiState.Downloading(release, percent, indeterminate)
@@ -269,6 +269,6 @@ class UpdateManager @Inject constructor(
 
     companion object {
         const val EXTRA_INSTALL_UPDATE = "update_install"
-        private const val RELEASES_URL = "https://github.com/makise2060/FluxTie/releases"
+        private const val RELEASES_URL = "https://github.com/Takina610/MioTie/releases"
     }
 }
