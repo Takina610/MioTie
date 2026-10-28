@@ -22,7 +22,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.Icon
-import androidx.compose.material.Scaffold
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccountCircle
@@ -71,6 +70,7 @@ import com.huanchengfly.tieba.post.ui.page.destinations.SettingsPageDestination
 import com.huanchengfly.tieba.post.ui.page.destinations.ThreadStorePageDestination
 import com.huanchengfly.tieba.post.ui.page.destinations.UserProfilePageDestination
 import com.huanchengfly.tieba.post.ui.page.destinations.WebViewPageDestination
+import com.huanchengfly.tieba.post.ui.widgets.compose.MyScaffold
 import com.huanchengfly.tieba.post.ui.widgets.compose.Avatar
 import com.huanchengfly.tieba.post.ui.widgets.compose.PullRefreshLogoIndicator
 import com.huanchengfly.tieba.post.ui.widgets.compose.HorizontalDivider
@@ -266,7 +266,7 @@ fun UserPage(
         initial = null
     )
 
-    Scaffold(
+    MyScaffold(
         backgroundColor = Color.Transparent,
         topBar = { topBar?.invoke() },
         // 无顶栏时页面自行避让状态栏；有顶栏时由顶栏负责

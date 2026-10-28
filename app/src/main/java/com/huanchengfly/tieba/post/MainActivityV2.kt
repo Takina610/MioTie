@@ -16,11 +16,7 @@ import android.os.Looper
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.core.AnimationSpec
-import androidx.compose.animation.core.FastOutLinearInEasing
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.LinearOutSlowInEasing
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.VisibilityThreshold
+import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -150,6 +146,11 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.exp
+import kotlin.math.sin
+import kotlin.math.sqrt
 
 val LocalNotificationCountFlow =
     staticCompositionLocalOf<Flow<Int>> { throw IllegalStateException("not allowed here!") }
@@ -646,10 +647,11 @@ class MainActivityV2 : BaseComposeActivity() {
 }
 
 private object TiebaNavHostDefaults {
-    // M3 Shared Axis X:短位移 + 淡化,固定时长,弃用全宽低刚度弹簧
-    private val SlideSpec = tween<IntOffset>(300, easing = FastOutSlowInEasing)
-    private val FadeInSpec = tween<Float>(240, delayMillis = 60, easing = LinearOutSlowInEasing)
-    private val FadeOutSpec = tween<Float>(120, easing = FastOutLinearInEasing)
+    // 对齐 MeiloX(miuix NavDisplay):新页全宽滑入,旧页 1/4 视差,500ms 阻尼曲线;
+    // 返回方向对称。规格来自 miuix defaultTransitionSpec(0.8, 0.95)
+    private val NavEasing = MiuixNavEasing(0.8f, 0.95f)
+    private val SlideSpec = tween<IntOffset>(500, easing = NavEasing)
+    private val FadeSpec = tween<Float>(500, easing = NavEasing)
 
     @Composable
     @OptIn(ExperimentalMaterialApi::class, ExperimentalAnimationApi::class)
@@ -657,16 +659,18 @@ private object TiebaNavHostDefaults {
         navHostContentAlignment = Alignment.TopStart,
         rootDefaultAnimations = RootNavGraphDefaultAnimations(
             enterTransition = {
-                slideInHorizontally(SlideSpec) { it / 4 } + fadeIn(FadeInSpec)
+                slideInHorizontally(SlideSpec) { it }
             },
+            // 旧页滑出 1/4 视差并压暗至 50%,由不透明的新页盖住后再移除
+            // (对齐 miuix NavDisplayTransitionEffects.dimAmount;页面背景由 PageBackground 保证)
             exitTransition = {
-                slideOutHorizontally(SlideSpec) { -it / 6 } + fadeOut(FadeOutSpec)
+                slideOutHorizontally(SlideSpec) { -it / 4 } + fadeOut(FadeSpec, targetAlpha = 0.5f)
             },
             popEnterTransition = {
-                slideInHorizontally(SlideSpec) { -it / 6 } + fadeIn(FadeInSpec)
+                slideInHorizontally(SlideSpec) { -it / 4 } + fadeIn(FadeSpec, initialAlpha = 0.5f)
             },
             popExitTransition = {
-                slideOutHorizontally(SlideSpec) { it / 4 } + fadeOut(FadeOutSpec)
+                slideOutHorizontally(SlideSpec) { it }
             },
         ),
     )
@@ -677,4 +681,27 @@ private object TiebaNavHostDefaults {
         animationSpec = spring(dampingRatio = 1f, stiffness = 500f),
         skipHalfExpanded = true
     )
+}
+
+// 移植自 miuix NavTransitionEasing(Apache-2.0),MeiloX 转场使用的阻尼曲线
+private class MiuixNavEasing(response: Float, damping: Float) : Easing {
+    private val r: Float
+    private val w: Float
+    private val c2: Float
+
+    init {
+        val omega = 2.0 * PI / response
+        val k = omega * omega
+        val c = damping * 4.0 * PI / response
+
+        w = (sqrt(4.0 * k - c * c) / 2.0).toFloat()
+        r = (-c / 2.0).toFloat()
+        c2 = r / w
+    }
+
+    override fun transform(fraction: Float): Float {
+        val t = fraction.toDouble()
+        val decay = exp(r * t)
+        return (decay * (-cos(w * t) + c2 * sin(w * t)) + 1.0).toFloat()
+    }
 }

@@ -3,7 +3,6 @@ package com.huanchengfly.tieba.post.ui.page.main.notifications
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.material.Scaffold
 import androidx.compose.material.Tab
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
@@ -130,7 +129,7 @@ fun NotificationsPage(
         initialPage = initialTab,
     ) { pages.size }
     val coroutineScope = rememberCoroutineScope()
-    Scaffold(
+    MyScaffold(
         backgroundColor = Color.Transparent,
         topBar = {
             Toolbar(
