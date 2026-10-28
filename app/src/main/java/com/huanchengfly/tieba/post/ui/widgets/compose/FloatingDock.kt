@@ -21,6 +21,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -50,6 +51,7 @@ import com.huanchengfly.tieba.post.ui.page.main.NavigationItem
 import com.kyant.backdrop.Backdrop
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -66,12 +68,6 @@ val DockCompactHeight = 44.dp
 
 /** 导航胶囊内左右留白（对齐 MeiloX 4dp padding）。 */
 internal val DockInnerHorizontalPadding = 4.dp
-
-/** 单个条目最小宽度（对齐 MeiloX ExpandedNavigationItemMinWidth）。 */
-private val DockItemMinWidth = 75.dp
-
-/** 图标半径 + 间隙：相邻条目允许重叠的保护区（对齐 MeiloX NavigationItemIconClearance）。 */
-private val DockItemIconClearance = 4.dp
 
 /** 指示器高度 = 56dp（Glasmio ExpandedNavigationItemHeight = 64dp - 8dp）。 */
 private val DockIndicatorVerticalMargin = 4.dp
@@ -104,6 +100,7 @@ fun supportsBackdropBlur(): Boolean = android.os.Build.VERSION.SDK_INT >= androi
  *   拖动时不会出现随页面内容变化的玻璃折射；
  * - 拖动：超过触摸 slop 且为水平意图才开始跟手，带速度形变与 4dp rubber-band；
  * - 点击：切换后指示器以 spring(1, 1000) 落位，并在移动前先做一次按压脉冲；
+ *   进入目标 2.5% 范围即回收放大（对齐 MeiloX DampedDragAnimation.release）；
  * - 下沉态：胶囊收成当前页的圆形按钮，整颗可点，点击展开。
  *
  * @param expandedWidth 展开态胶囊宽度，用于计算固定条目宽度（下沉动画期间条目不变）
@@ -141,21 +138,12 @@ fun FloatingDock(
     val density = LocalDensity.current
     val viewConfiguration = LocalViewConfiguration.current
     val innerPaddingPx = with(density) { DockInnerHorizontalPadding.toPx() }
-    val minItemWidthPx = with(density) { DockItemMinWidth.toPx() }
-    val protectedIconRadiusPx = with(density) {
-        DockItemIconSize.toPx() / 2f + DockItemIconClearance.toPx()
-    }
     val contentWidthPx = with(density) {
         (expandedWidth - DockInnerHorizontalPadding * 2).toPx()
     }.coerceAtLeast(1f)
-    // MeiloX navigationTabGeometry：宽度取「均分」与「最小宽度」之间的可重叠值
-    val maxItemWidthPx = if (itemCount > 1) {
-        (2f * (contentWidthPx - (itemCount - 1) * protectedIconRadiusPx) / (itemCount + 1))
-            .coerceIn(1f, contentWidthPx)
-    } else contentWidthPx
-    val itemWidthPx = (contentWidthPx / itemCount)
-        .coerceAtLeast(minItemWidthPx)
-        .coerceAtMost(maxItemWidthPx)
+    // MeiloX navigationTabGeometry：条目均分胶囊宽度，步长与条目宽度一致
+    // （指示器左右边缘正好落在相邻条目中心）。
+    val itemWidthPx = contentWidthPx / itemCount.coerceAtLeast(1)
     val stepPx = if (itemCount > 1) (contentWidthPx - itemWidthPx) / (itemCount - 1) else 0f
     val bloomPx = with(density) { DockPressBloomDp.toPx() }
     val rubberBandPx = with(density) { DockRubberBand.toPx() }
@@ -187,7 +175,12 @@ fun FloatingDock(
             launch { pressProgress.animateTo(1f, DockPressSpring) }
             launch { indicatorScaleX.animateTo(DockIndicatorPressScale, DockScaleXSpring) }
             launch { indicatorScaleY.animateTo(DockIndicatorPressScale, DockScaleYSpring) }
-            dragPosition.animateTo(target, DockItemSpring)
+            launch { dragPosition.animateTo(target, DockItemSpring) }
+            // 对齐 MeiloX DampedDragAnimation.release()：进入目标 2.5% 范围就回收放大，
+            // 不等 spring 完全落定，否则指示器会在目标位置多保持放大一百多毫秒。
+            val releaseThreshold = lastIndex.coerceAtLeast(1) * 0.025f
+            snapshotFlow { dragPosition.value }
+                .first { abs(it - target) < releaseThreshold }
             launch { indicatorScaleX.animateTo(1f, DockScaleXSpring) }
             launch { indicatorScaleY.animateTo(1f, DockScaleYSpring) }
             pressProgress.animateTo(0f, DockPressSpring)
@@ -211,6 +204,12 @@ fun FloatingDock(
     // 壳按压放大（对齐 MeiloX navigationPressScale，仅展开态）
     val panelScale = 1f + bloomPx / with(density) { expandedWidth.toPx() }.coerceAtLeast(1f) *
         press * (1f - compact)
+    // 壳以中心为轴放大，指示器要跟着平移，否则按压两端 tab 时胶囊与图标错位
+    // （对齐 Glasmio navigationPanelCenterOffset）。
+    val panelCenterPx = with(density) { expandedWidth.toPx() }.coerceAtLeast(1f) / 2f
+    val indicatorPanelShiftPx =
+        (innerPaddingPx + dragPosition.value * stepPx + itemWidthPx / 2f - panelCenterPx) *
+            (panelScale - 1f)
 
     Box(modifier = modifier.height(capsuleHeight)) {
         // 玻璃壳（均匀材质；无描边、无外圈光晕）
@@ -265,7 +264,7 @@ fun FloatingDock(
 
         // 选中指示器（MeiloX：纯 10% 填充，可越界 bloom；下沉态淡出）
         DockIndicator(
-            positionPx = innerPaddingPx + dragPosition.value * stepPx,
+            positionPx = innerPaddingPx + dragPosition.value * stepPx + indicatorPanelShiftPx,
             widthPx = itemWidthPx,
             height = indicatorHeight,
             pressedScaleX = indicatorScaleX.value,
