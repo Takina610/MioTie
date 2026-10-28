@@ -75,3 +75,5 @@ commit-message.txt
 local-docs/
 
 .open
+run_phone.bat
+run_phone.ps1

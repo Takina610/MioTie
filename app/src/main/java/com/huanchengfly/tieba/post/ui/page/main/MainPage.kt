@@ -37,7 +37,11 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -56,19 +60,20 @@ import com.huanchengfly.tieba.post.ui.common.theme.compose.ExtendedTheme
 import com.huanchengfly.tieba.post.ui.common.windowsizeclass.WindowHeightSizeClass
 import com.huanchengfly.tieba.post.ui.common.windowsizeclass.WindowWidthSizeClass
 import com.huanchengfly.tieba.post.ui.page.ProvideNavigator
+import com.huanchengfly.tieba.post.ui.page.destinations.MyPageDestination
+import com.huanchengfly.tieba.post.ui.page.destinations.SearchPageDestination
 import com.huanchengfly.tieba.post.ui.page.main.explore.ExplorePage
 import com.huanchengfly.tieba.post.ui.page.main.home.HomePage
 import com.huanchengfly.tieba.post.ui.page.main.home.HomeUiIntent
 import com.huanchengfly.tieba.post.ui.page.main.home.HomeViewModel
 import com.huanchengfly.tieba.post.ui.page.main.notifications.NotificationsPage
-import com.huanchengfly.tieba.post.ui.page.main.user.UserPage
 import com.huanchengfly.tieba.post.ui.utils.DevicePosture
 import com.huanchengfly.tieba.post.ui.utils.MainNavigationContentPosition
 import com.huanchengfly.tieba.post.ui.utils.MainNavigationType
-import com.huanchengfly.tieba.post.ui.widgets.compose.FloatingDock
 import com.huanchengfly.tieba.post.ui.widgets.compose.MyScaffold
 import com.huanchengfly.tieba.post.ui.widgets.compose.SplashState
 import com.huanchengfly.tieba.post.ui.widgets.compose.supportsBackdropBlur
+import com.huanchengfly.tieba.post.utils.AccountUtil.LocalAccount
 import com.huanchengfly.tieba.post.utils.appPreferences
 import com.ramcosta.composedestinations.annotation.Destination
 import com.ramcosta.composedestinations.annotation.RootNavGraph
@@ -77,8 +82,6 @@ import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
-import kotlinx.coroutines.launch
-import com.huanchengfly.tieba.post.utils.AccountUtil.LocalAccount
 
 @Composable
 private fun NavigationWrapper(
@@ -227,13 +230,13 @@ fun MainPage(
                     }
                 ),
                 NavigationItem(
-                    id = "user",
+                    id = "settings",
                     icon = {
-                        AnimatedImageVector.animatedVectorResource(id = R.drawable.ic_animated_rounded_person)
+                        AnimatedImageVector.animatedVectorResource(id = R.drawable.ic_animated_rounded_settings)
                     },
-                    title = { stringResource(id = R.string.title_user) },
+                    title = { stringResource(id = R.string.title_settings) },
                     content = {
-                        UserPage()
+                        SettingsTabPage()
                     }
                 ),
             ).toImmutableList()
@@ -302,10 +305,30 @@ fun MainPage(
     val saveableStateHolder = rememberSaveableStateHolder()
     // 真悬浮布局:胶囊叠于内容之上,内容 edge-to-edge;经典贴底/Rail 模式沿用 Scaffold 避让
     val floatingLayout = navigationType == MainNavigationType.BOTTOM_NAVIGATION && floatingBottomNav
+    // 滚动下沉：向下滚内容时底栏收成一行，向上滚或点击时展开（对齐 MeiloX）
+    var bottomBarsExpanded by remember { mutableStateOf(true) }
+    val nestedScrollConnection = remember(floatingLayout) {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (!floatingLayout) return Offset.Zero
+                // 仅用户拖动内容时收放底栏（避免动画/程序滚动误触发）
+                if (source != NestedScrollSource.UserInput) return Offset.Zero
+                if (available.y < -4f) bottomBarsExpanded = false
+                if (available.y > 4f) bottomBarsExpanded = true
+                return Offset.Zero
+            }
+        }
+    }
+    LaunchedEffect(currentPosition) {
+        bottomBarsExpanded = true
+    }
     // M2 Scaffold 不做系统 insets 避让(contentWindowInsets 传的是全 0),悬浮模式下底部
-    // 导航栏区域需在此统一补足:呼吸位 = 胶囊高 + 底边距 + 呼吸(84dp) + 系统导航栏,
+    // 悬浮区(个人信息条 + 导航胶囊)需在此统一补足:呼吸位 = 悬浮区总高 + 呼吸(8dp) + 系统导航栏,
     // 列表末项才能完整滚出胶囊,加载提示胶囊也停在这条线上。
     val navigationBarsInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    // 个人信息条始终进入「我」页面（未登录也在页面内引导登录）
+    val onUserClick: () -> Unit = { navigator.navigate(MyPageDestination) }
+    val onSearchClick: () -> Unit = { navigator.navigate(SearchPageDestination) }
     ProvideNavigator(navigator = navigator) {
         NavigationWrapper(
             currentPosition = currentPosition,
@@ -329,17 +352,28 @@ fun MainPage(
                         AnimatedVisibility(
                             visible = navigationType == MainNavigationType.BOTTOM_NAVIGATION && !floatingBottomNav
                         ) {
-                            BottomNavigation(
-                                currentPosition = currentPosition,
-                                onChangePosition = onChangePosition,
-                                onReselected = onReselected,
-                                navigationItems = navigationItems,
-                                themeColors = themeColors,
-                            )
+                            Column {
+                                MainUserInfoRow(
+                                    account = account,
+                                    onClick = onUserClick,
+                                    themeColors = themeColors,
+                                )
+                                BottomNavigation(
+                                    currentPosition = currentPosition,
+                                    onChangePosition = onChangePosition,
+                                    onReselected = onReselected,
+                                    navigationItems = navigationItems,
+                                    themeColors = themeColors,
+                                )
+                            }
                         }
                     }
                 ) { paddingValues ->
-                    Box(modifier = Modifier.fillMaxSize()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .nestedScroll(nestedScrollConnection)
+                    ) {
                         AnimatedContent(
                             targetState = currentPosition,
                             transitionSpec = {
@@ -363,12 +397,17 @@ fun MainPage(
                         }
                         if (floatingLayout) {
                             Box(modifier = Modifier.align(Alignment.BottomCenter)) {
-                                FloatingDock(
+                                MainBottomBars(
+                                    account = account,
                                     currentPosition = currentPosition,
                                     onChangePosition = onChangePosition,
                                     onReselected = onReselected,
+                                    onExpand = { bottomBarsExpanded = true },
                                     navigationItems = navigationItems,
                                     hazeState = hazeState,
+                                    onUserClick = onUserClick,
+                                    onSearchClick = onSearchClick,
+                                    compact = !bottomBarsExpanded,
                                     themeColors = themeColors,
                                 )
                             }

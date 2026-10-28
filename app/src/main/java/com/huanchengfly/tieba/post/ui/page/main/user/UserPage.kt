@@ -66,6 +66,7 @@ import com.huanchengfly.tieba.post.ui.page.LocalNavigator
 import com.huanchengfly.tieba.post.ui.page.destinations.AboutPageDestination
 import com.huanchengfly.tieba.post.ui.page.destinations.FollowListPageDestination
 import com.huanchengfly.tieba.post.ui.page.destinations.HistoryPageDestination
+import com.huanchengfly.tieba.post.ui.page.destinations.LoginPageDestination
 import com.huanchengfly.tieba.post.ui.page.destinations.SettingsPageDestination
 import com.huanchengfly.tieba.post.ui.page.destinations.ThreadStorePageDestination
 import com.huanchengfly.tieba.post.ui.page.destinations.UserProfilePageDestination
@@ -247,6 +248,7 @@ private fun LoginTipCard(modifier: Modifier = Modifier) {
 @OptIn(ExperimentalMaterialApi::class)
 @Composable
 fun UserPage(
+    topBar: (@Composable () -> Unit)? = null,
     viewModel: UserViewModel = pageViewModel<UserUiIntent, UserViewModel>(
         listOf(
             UserUiIntent.Refresh
@@ -266,8 +268,10 @@ fun UserPage(
 
     Scaffold(
         backgroundColor = Color.Transparent,
+        topBar = { topBar?.invoke() },
+        // 无顶栏时页面自行避让状态栏；有顶栏时由顶栏负责
         modifier = Modifier
-            .statusBarsPadding()
+            .then(if (topBar == null) Modifier.statusBarsPadding() else Modifier)
             .fillMaxSize()
     ) { contentPaddings ->
         val pullRefreshState = rememberPullRefreshState(
@@ -370,11 +374,12 @@ fun UserPage(
                             .padding(vertical = 18.dp)
                     )
                 } else {
-                    // 未登录头部
+                    // 未登录头部：整块与右侧头像都可点，进入登录页
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
                             .fillMaxWidth()
+                            .clickable { navigator.navigate(LoginPageDestination) }
                             .padding(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 16.dp)
                     ) {
                         Column(modifier = Modifier.weight(1f)) {

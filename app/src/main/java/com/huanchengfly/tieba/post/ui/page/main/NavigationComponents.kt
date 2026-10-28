@@ -4,6 +4,7 @@ import androidx.compose.animation.graphics.ExperimentalAnimationGraphicsApi
 import androidx.compose.animation.graphics.res.rememberAnimatedVectorPainter
 import androidx.compose.animation.graphics.vector.AnimatedImageVector
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -55,6 +56,8 @@ import com.huanchengfly.tieba.post.R
 import com.huanchengfly.tieba.post.ui.common.theme.compose.ExtendedColors
 import com.huanchengfly.tieba.post.ui.common.theme.compose.ExtendedTheme
 import com.huanchengfly.tieba.post.ui.common.theme.compose.White
+import com.huanchengfly.tieba.post.ui.page.LocalNavigator
+import com.huanchengfly.tieba.post.ui.page.destinations.MyPageDestination
 import com.huanchengfly.tieba.post.ui.utils.MainNavigationContentPosition
 import com.huanchengfly.tieba.post.ui.widgets.compose.AccountNavIcon
 import com.huanchengfly.tieba.post.ui.widgets.compose.Avatar
@@ -68,11 +71,11 @@ enum class LayoutType {
 
 /**
  * 真悬浮底栏模式下,内容列表需要预留的底部呼吸位:
- * 胶囊高 64dp + 底边距 12dp + 呼吸 8dp = 84dp。
+ * 个人信息条 + 导航胶囊 + 层间距 + 底边距(= [MainBottomOverlayHeight]) + 呼吸 8dp。
  * 系统导航栏避让不在此常量内,由 MainPage 统一加进 [LocalMainBottomInsets]。
  * 经典贴底模式 / Rail 抽屉模式为 0.dp(沿用 Scaffold paddingValues 避让)。
  */
-val MainBottomBreathing = 84.dp
+val MainBottomBreathing = MainBottomOverlayHeight + 8.dp
 
 /**
  * 真悬浮底栏模式下,页面底部需要避让的总高度(呼吸位 + 系统导航栏):
@@ -155,6 +158,7 @@ fun NavigationDrawerContent(
     navigationItems: ImmutableList<NavigationItem>,
     navigationContentPosition: MainNavigationContentPosition
 ) {
+    val navigator = LocalNavigator.current
     PositionLayout(
         modifier = Modifier
             .width(ActiveIndicatorWidth)
@@ -181,7 +185,10 @@ fun NavigationDrawerContent(
                         Text(
                             text = account.nameShow ?: account.name,
                             style = MaterialTheme.typography.subtitle1,
-                            color = ExtendedTheme.colors.text
+                            color = ExtendedTheme.colors.text,
+                            modifier = Modifier
+                                .clip(MaterialTheme.shapes.small)
+                                .clickable { navigator.navigate(MyPageDestination) }
                         )
                     }
                 } else {
@@ -313,6 +320,7 @@ fun NavigationRail(
     navigationItems: ImmutableList<NavigationItem>,
     navigationContentPosition: MainNavigationContentPosition
 ) {
+    val navigator = LocalNavigator.current
     NavigationRail(
         backgroundColor = ExtendedTheme.colors.bottomBar,
         contentColor = ExtendedTheme.colors.unselected,
@@ -321,7 +329,7 @@ fun NavigationRail(
             .statusBarsPadding(),
         elevation = 0.dp,
         header = {
-            AccountNavIcon(spacer = false)
+            AccountNavIcon(spacer = false, onClick = { navigator.navigate(MyPageDestination) })
         }
     ) {
         Column(
