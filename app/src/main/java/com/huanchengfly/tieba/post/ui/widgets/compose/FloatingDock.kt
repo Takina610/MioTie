@@ -87,6 +87,9 @@ private val DockScaleXSpring = spring<Float>(dampingRatio = 0.6f, stiffness = 25
 private val DockScaleYSpring = spring<Float>(dampingRatio = 0.7f, stiffness = 250f, visibilityThreshold = 0.001f)
 private val DockVelocitySpring = spring<Float>(dampingRatio = 0.5f, stiffness = 300f, visibilityThreshold = 0.001f)
 
+/** 白色柔光（Glasmio pressHighlightSpring = spring(0.5, 300)）。 */
+private val DockGlowSpring = spring<Float>(dampingRatio = 0.5f, stiffness = 300f, visibilityThreshold = 0.001f)
+
 /** 背景模糊（RenderEffect）需要 API 31+。 */
 fun supportsBackdropBlur(): Boolean = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S
 
@@ -94,10 +97,11 @@ fun supportsBackdropBlur(): Boolean = android.os.Build.VERSION.SDK_INT >= androi
  * 悬浮导航胶囊（照搬 MeiloX 关闭「液态玻璃」后的底栏）：
  *
  * - 静止：普通毛玻璃壳 + 10% 黑/白选中指示器，无折射、无描边、无外圈光晕；
- * - 按压：壳按 16dp/宽度轻微放大、指示器 bloom（78/56）、整条壳出现 8% 提亮 +
- *   指示器位置 15% 光斑，选中图标/名称退成前景色；壳上任意位置按下都触发
- *   （对齐 Glasmio：整条胶囊都是指示器的命中区）；指示器本身不采样背景，
- *   拖动时不会出现随页面内容变化的玻璃折射；
+ * - 按压：壳按 16dp/宽度轻微放大、指示器 bloom（78/56），选中图标/名称退成前景色；
+ *   按住指示器或拖动时整条壳另有 8% 提亮 + 指示器位置 15% 柔光（MeiloX
+ *   InteractiveHighlight），点按其他条目切换不点亮该柔光；壳上任意位置按下都进入
+ *   同一套按压/拖动状态（对齐 Glasmio：整条胶囊都是指示器的命中区）；指示器本身
+ *   不采样背景，拖动时不会出现随页面内容变化的玻璃折射；
  * - 拖动：超过触摸 slop 且为水平意图才开始跟手，带速度形变与 4dp rubber-band；
  * - 点击：切换后指示器以 spring(1, 1000) 落位，并在移动前先做一次按压脉冲；
  *   进入目标 2.5% 范围即回收放大（对齐 MeiloX DampedDragAnimation.release）；
@@ -155,6 +159,9 @@ fun FloatingDock(
     val pressProgress = remember { Animatable(0f) }
     val indicatorScaleX = remember { Animatable(1f) }
     val indicatorScaleY = remember { Animatable(1f) }
+    // 白色柔光独立于按压脉冲：MeiloX 的 InteractiveHighlight 只响应按住指示器的交互，
+    // 点击其他条目切换时不亮
+    val highlightProgress = remember { Animatable(0f) }
     val velocity = remember { Animatable(0f) }
     val velocityTracker = remember { VelocityTracker() }
     val panelOffsetRaw = remember { Animatable(0f) }
@@ -191,6 +198,7 @@ fun FloatingDock(
 
     val surfaceTint = glassDockTint(themeColors.isNightMode, blurSupported)
     val press = pressProgress.value.coerceIn(0f, 1f)
+    val glow = highlightProgress.value.coerceIn(0f, 1f)
     // rubber-band 面板偏移：拖拽越远偏移越大（4dp 上限，EaseOut 缓动）
     val panelOffsetPx: () -> Float = {
         val base = stepPx * lastIndex.coerceAtLeast(1)
@@ -229,7 +237,7 @@ fun FloatingDock(
         ) {}
 
         // 按压光斑（MeiloX InteractiveHighlight）：整条壳 8% 提亮，以指示器为圆心叠 15% 柔光。
-        // 指示器只做 10% 纯色填充，光斑可透过它显示。
+        // 只跟随「按住/拖动指示器」，点击切换 tab 的按压脉冲不点亮（对齐 MeiloX 命中区语义）。
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -240,15 +248,15 @@ fun FloatingDock(
                 }
                 .clip(CircleShape)
                 .drawWithContent {
-                    if (press > 0f) {
+                    if (glow > 0f) {
                         drawRect(
-                            color = Color.White.copy(alpha = 0.08f * press),
+                            color = Color.White.copy(alpha = 0.08f * glow),
                             blendMode = BlendMode.Plus,
                         )
                         drawRect(
                             brush = Brush.radialGradient(
-                                0f to Color.White.copy(alpha = 0.15f * press),
-                                0.5f to Color.White.copy(alpha = 0.15f * press),
+                                0f to Color.White.copy(alpha = 0.15f * glow),
+                                0.5f to Color.White.copy(alpha = 0.15f * glow),
                                 1f to Color.Transparent,
                                 center = Offset(
                                     x = innerPaddingPx + dragPosition.value * stepPx + itemWidthPx / 2f,
@@ -321,9 +329,9 @@ fun FloatingDock(
         }
 
         // 手势层（对齐 MeiloX）：
-        // - 按下选中透镜：壳放大 + 透镜 bloom + 按压高光；超过触摸 slop 后水平拖动，
-        //   松手按落点弹簧落定并切换；未移动则视为点击（再次点击当前项刷新）；
-        // - 按下其他条目：没有任何按压动效，抬手即切换；
+        // - 按下任意位置：壳放大 + 透镜 bloom；按住的是选中条目时再加白色柔光，
+        //   超过触摸 slop 后水平拖动（柔光常亮），松手按落点弹簧落定并切换；
+        //   未移动则视为点击（再次点击当前项刷新），点按其他条目只有 bloom、无柔光；
         // - 下沉态：整颗圆钮即「展开」热区，先对齐指示器再展开。
         Box(
             modifier = Modifier
@@ -366,6 +374,13 @@ fun FloatingDock(
                         scope.launch {
                             indicatorScaleY.animateTo(DockIndicatorPressScale, DockScaleYSpring)
                         }
+                        // 白色柔光属于「按住指示器」的交互（MeiloX InteractiveHighlight 挂在指示器命中区上），
+                        // 点按其他条目切换时只做指示器 bloom，不点亮整壳柔光
+                        if (slotAt(down.position.x, innerPaddingPx, itemWidthPx, stepPx, itemCount) ==
+                            currentPositionLatest.value
+                        ) {
+                            scope.launch { highlightProgress.animateTo(1f, DockGlowSpring) }
+                        }
 
                         var moved = false
                         var dragging = false
@@ -399,10 +414,14 @@ fun FloatingDock(
                                     if (dragging) {
                                         isDragging = true
                                         velocityTracker.resetTracking()
+                                        scope.launch {
+                                            highlightProgress.animateTo(1f, DockGlowSpring)
+                                        }
                                     } else {
                                         scope.launch { pressProgress.animateTo(0f, DockPressSpring) }
                                         scope.launch { indicatorScaleX.animateTo(1f, DockScaleXSpring) }
                                         scope.launch { indicatorScaleY.animateTo(1f, DockScaleYSpring) }
+                                        scope.launch { highlightProgress.animateTo(0f, DockGlowSpring) }
                                     }
                                 }
                             }
@@ -432,6 +451,7 @@ fun FloatingDock(
                         scope.launch { pressProgress.animateTo(0f, DockPressSpring) }
                         scope.launch { indicatorScaleX.animateTo(1f, DockScaleXSpring) }
                         scope.launch { indicatorScaleY.animateTo(1f, DockScaleYSpring) }
+                        scope.launch { highlightProgress.animateTo(0f, DockGlowSpring) }
 
                         if (!dragging) {
                             if (!moved && !cancelled) {
