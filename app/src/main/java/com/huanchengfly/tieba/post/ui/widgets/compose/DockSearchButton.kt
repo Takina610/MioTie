@@ -25,7 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import com.huanchengfly.tieba.post.ui.common.theme.compose.ExtendedColors
 import com.huanchengfly.tieba.post.ui.common.theme.compose.ExtendedTheme
-import dev.chrisbanes.haze.HazeState
+import com.kyant.backdrop.Backdrop
 
 /** 按下时圆钮整体放大比例（横向 / 纵向），与导航胶囊一致。 */
 private const val DockPressBloomX = 0.05f
@@ -33,7 +33,7 @@ private const val DockPressBloomY = 0.09f
 
 @Composable
 fun DockSearchButton(
-    hazeState: HazeState,
+    backdrop: Backdrop,
     compactProgress: Float,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -41,9 +41,7 @@ fun DockSearchButton(
 ) {
     val blurSupported = supportsBackdropBlur()
     val compact = compactProgress.coerceIn(0f, 1f)
-    val tint = themeColors.bottomBarSurface.copy(
-        alpha = if (blurSupported) GlassSurfaceAlphaBlur else GlassSurfaceAlphaFallback
-    )
+    val tint = glassDockTint(themeColors.isNightMode, blurSupported)
     var pressed by remember { mutableStateOf(false) }
     val press by animateFloatAsState(
         targetValue = if (pressed) 1f else 0f,
@@ -52,7 +50,7 @@ fun DockSearchButton(
     )
     Box(
         modifier = modifier
-            .size(lerp(DockNavBarHeight, DockCompactHeight, compact))
+            .size(lerp(DockSearchSize, DockCompactHeight, compact))
             .graphicsLayer {
                 scaleX = 1f + DockPressBloomX * press
                 scaleY = 1f + DockPressBloomY * press
@@ -61,11 +59,10 @@ fun DockSearchButton(
         GlassCapsule(
             modifier = Modifier.fillMaxSize(),
             shape = CircleShape,
-            hazeState = hazeState,
+            backdrop = backdrop,
             tint = tint,
             isNightMode = themeColors.isNightMode,
             blurSupported = blurSupported,
-            glowProgress = press,
         ) {
             Box(
                 modifier = Modifier

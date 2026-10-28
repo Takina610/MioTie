@@ -1,7 +1,5 @@
 package com.huanchengfly.tieba.post.ui.widgets.compose
 
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.graphics.ExperimentalAnimationGraphicsApi
 import androidx.compose.animation.graphics.res.rememberAnimatedVectorPainter
 import androidx.compose.foundation.background
@@ -16,12 +14,9 @@ import androidx.compose.material.Icon
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.zIndex
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
@@ -31,48 +26,41 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import com.huanchengfly.tieba.post.ui.common.theme.compose.White
 import com.huanchengfly.tieba.post.ui.page.main.NavigationItem
 import kotlin.math.roundToInt
 
-/** 图标尺寸。 */
-internal val DockItemIconSize = 24.dp
+/** 图标尺寸（对齐 MeiloX ExpandedNavigationIconSize）。 */
+internal val DockItemIconSize = 28.dp
 
-/** 名称字号。 */
-private val DockItemLabelSize = 12.sp
-
-/** 按下时条目图标放大比例（1 + 0.2）。 */
-private const val DockTabPressScaleExtra = 0.2f
+/** 名称字号（对齐 MeiloX NavigationLabelStyle）。 */
+private val DockItemLabelSize = 10.sp
 
 /**
- * 导航条目：图标 + 名称常显；配色由指示器位置驱动（拖拽经过时实时渐变到强调色）。
+ * 导航条目（对齐 MeiloX NavigationTabContent）：图标 + 名称常显；
+ * 选中色只由选中态决定，按压时向前景色回退，下沉时再回退到前景色。
  *
- * @param progress 与指示器的接近度（0..1），驱动文字/图标配色
- * @param pressed 是否处于按压态（图标单独放大）
+ * @param compact 下沉进度（0..1）：名称高度与透明度一起收掉
+ * @param pressProgress 选中指示器的按压进度（0..1）：选中图标/名称随之退成前景色
  */
 @OptIn(ExperimentalAnimationGraphicsApi::class)
 @Composable
 internal fun DockTab(
     navigationItem: NavigationItem,
     selected: Boolean,
-    progress: Float,
     compact: Float,
     alpha: Float,
     accent: Color,
     baseColor: Color,
-    pressed: Boolean,
+    pressProgress: Float = 0f,
     modifier: Modifier = Modifier,
 ) {
-    // 下沉态不显示「选中样式」：配色回落到普通前景色
-    val color = lerp(baseColor, accent, progress * (1f - compact))
-    // 被按下的条目图标单独放大（spring，与其他条目互不影响）
-    val iconScale = remember { Animatable(1f) }
-    LaunchedEffect(pressed) {
-        iconScale.animateTo(
-            targetValue = if (pressed) 1f + DockTabPressScaleExtra else 1f,
-            animationSpec = spring(dampingRatio = 0.6f, stiffness = 250f),
-        )
-    }
+    val press = pressProgress.coerceIn(0f, 1f)
+    val compactFraction = compact.coerceIn(0f, 1f)
+    val color = if (selected) {
+        lerp(lerp(accent, baseColor, press), baseColor, compactFraction)
+    } else baseColor
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -90,11 +78,8 @@ internal fun DockTab(
                 contentDescription = null,
                 tint = color,
                 modifier = Modifier
-                    .size(DockItemIconSize)
-                    .graphicsLayer {
-                        scaleX = iconScale.value
-                        scaleY = iconScale.value
-                    },
+                    .padding(top = 3.dp * (1f - compact))
+                    .size(DockItemIconSize),
             )
             if (navigationItem.badge) {
                 DockBadge(
@@ -108,12 +93,12 @@ internal fun DockTab(
                 )
             }
         }
-        // 名称常显；下沉时高度与透明度一起收掉，图标回到胶囊正中
         Text(
             text = navigationItem.title(selected),
             maxLines = 1,
             fontSize = DockItemLabelSize,
-            fontWeight = FontWeight.SemiBold,
+            lineHeight = 13.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
             color = color,
             textAlign = TextAlign.Center,
             modifier = Modifier

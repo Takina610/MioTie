@@ -11,13 +11,18 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.Icon
 import androidx.compose.material.MaterialTheme
@@ -51,13 +56,13 @@ import com.huanchengfly.tieba.post.ui.widgets.compose.AvatarPlaceholder
 import com.huanchengfly.tieba.post.ui.widgets.compose.DockCompactHeight
 import com.huanchengfly.tieba.post.ui.widgets.compose.DockNavBarHeight
 import com.huanchengfly.tieba.post.ui.widgets.compose.DockSearchButton
+import com.huanchengfly.tieba.post.ui.widgets.compose.DockSearchSize
 import com.huanchengfly.tieba.post.ui.widgets.compose.FloatingDock
 import com.huanchengfly.tieba.post.ui.widgets.compose.GlassCapsule
-import com.huanchengfly.tieba.post.ui.widgets.compose.GlassSurfaceAlphaBlur
-import com.huanchengfly.tieba.post.ui.widgets.compose.GlassSurfaceAlphaFallback
+import com.huanchengfly.tieba.post.ui.widgets.compose.glassDockTint
 import com.huanchengfly.tieba.post.ui.widgets.compose.supportsBackdropBlur
 import com.huanchengfly.tieba.post.utils.StringUtil
-import dev.chrisbanes.haze.HazeState
+import com.kyant.backdrop.Backdrop
 import kotlinx.collections.immutable.ImmutableList
 
 /** 个人信息条高度（对齐 MeiloX 迷你播放条）。 */
@@ -66,8 +71,8 @@ private val UserInfoBarHeight = 44.dp
 /** 个人信息条与导航胶囊的间距（展开态）。 */
 private val MainBottomBarGap = 8.dp
 
-/** 悬浮底栏距系统导航栏的底边距。 */
-private val MainBottomBarMargin = 8.dp
+/** 悬浮底栏距屏幕底部的边距（与系统导航栏 inset 取较大值，对齐 MeiloX 20dp 下限）。 */
+private val MainBottomBarMargin = 20.dp
 
 /** 悬浮底栏水平外边距。 */
 private val MainBottomBarHorizontalMargin = 20.dp
@@ -99,7 +104,7 @@ fun MainBottomBars(
     onReselected: (position: Int) -> Unit,
     onExpand: () -> Unit,
     navigationItems: ImmutableList<NavigationItem>,
-    hazeState: HazeState,
+    backdrop: Backdrop,
     onUserClick: () -> Unit,
     onSearchClick: () -> Unit,
     compact: Boolean,
@@ -113,18 +118,20 @@ fun MainBottomBars(
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
-            .navigationBarsPadding()
+            .windowInsetsPadding(
+                WindowInsets.navigationBars.only(WindowInsetsSides.Bottom)
+                    .union(WindowInsets(bottom = MainBottomBarMargin))
+            )
             .padding(
                 start = MainBottomBarHorizontalMargin,
                 end = MainBottomBarHorizontalMargin,
-                bottom = MainBottomBarMargin,
             ),
     ) {
         val progress = compactProgress.coerceIn(0f, 1f)
         val usableWidth = maxWidth
         val gap = MainBottomBarGap
-        val expandedDockWidth = usableWidth - DockNavBarHeight - gap
-        // 展开: 44 + 8 + 60；下沉: 44（三者同排）
+        val expandedDockWidth = usableWidth - DockSearchSize - gap
+        // 展开: 44 + 8 + 64；下沉: 44（三者同排）
         val overlayHeight = lerp(UserInfoBarHeight + gap + DockNavBarHeight, DockCompactHeight, progress)
         val infoWidth = lerp(usableWidth, usableWidth - (DockCompactHeight + gap) * 2, progress)
         val compactInfoOffset = (DockCompactHeight + gap) * progress
@@ -134,7 +141,7 @@ fun MainBottomBars(
             content = {
                 UserInfoBar(
                     account = account,
-                    hazeState = hazeState,
+                    backdrop = backdrop,
                     themeColors = themeColors,
                     onClick = onUserClick,
                 )
@@ -144,13 +151,13 @@ fun MainBottomBars(
                     onReselected = onReselected,
                     onExpand = onExpand,
                     navigationItems = navigationItems,
-                    hazeState = hazeState,
+                    backdrop = backdrop,
                     compactProgress = progress,
                     expandedWidth = expandedDockWidth,
                     themeColors = themeColors,
                 )
                 DockSearchButton(
-                    hazeState = hazeState,
+                    backdrop = backdrop,
                     compactProgress = progress,
                     onClick = onSearchClick,
                     themeColors = themeColors,
@@ -164,7 +171,7 @@ fun MainBottomBars(
             val height = constraints.maxHeight
             val infoW = infoWidth.roundToPx()
             val dockW = dockWidth.roundToPx()
-            val searchSize = lerp(DockNavBarHeight, DockCompactHeight, progress).roundToPx()
+            val searchSize = lerp(DockSearchSize, DockCompactHeight, progress).roundToPx()
             val infoH = UserInfoBarHeight.roundToPx()
             val dockHeight = lerp(DockNavBarHeight, DockCompactHeight, progress).roundToPx()
 
@@ -174,7 +181,11 @@ fun MainBottomBars(
             layout(width, height) {
                 infoPlaceable.place(compactInfoOffset.roundToPx(), 0)
                 dockPlaceable.place(0, height - dockHeight)
-                searchPlaceable.place(width - searchSize, height - searchSize)
+                // 展开态圆钮在 64dp 胶囊带内垂直居中（对齐 MeiloX Row CenterVertically）
+                searchPlaceable.place(
+                    width - searchSize,
+                    height - dockHeight + (dockHeight - searchSize) / 2,
+                )
             }
         }
     }
@@ -183,14 +194,12 @@ fun MainBottomBars(
 @Composable
 private fun UserInfoBar(
     account: Account?,
-    hazeState: HazeState,
+    backdrop: Backdrop,
     themeColors: ExtendedColors,
     onClick: () -> Unit,
 ) {
     val blurSupported = supportsBackdropBlur()
-    val tint = themeColors.bottomBarSurface.copy(
-        alpha = if (blurSupported) GlassSurfaceAlphaBlur else GlassSurfaceAlphaFallback
-    )
+    val tint = glassDockTint(themeColors.isNightMode, blurSupported)
     var pressed by remember { mutableStateOf(false) }
     val press by animateFloatAsState(
         targetValue = if (pressed) 1f else 0f,
@@ -205,11 +214,10 @@ private fun UserInfoBar(
                 scaleY = 1f + 0.05f * press
             },
         shape = CircleShape,
-        hazeState = hazeState,
+        backdrop = backdrop,
         tint = tint,
         isNightMode = themeColors.isNightMode,
         blurSupported = blurSupported,
-        glowProgress = press,
     ) {
         UserInfoContent(
             account = account,

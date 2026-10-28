@@ -72,14 +72,13 @@ import com.huanchengfly.tieba.post.ui.utils.MainNavigationContentPosition
 import com.huanchengfly.tieba.post.ui.utils.MainNavigationType
 import com.huanchengfly.tieba.post.ui.widgets.compose.MyScaffold
 import com.huanchengfly.tieba.post.ui.widgets.compose.SplashState
-import com.huanchengfly.tieba.post.ui.widgets.compose.supportsBackdropBlur
 import com.huanchengfly.tieba.post.utils.AccountUtil.LocalAccount
 import com.huanchengfly.tieba.post.utils.appPreferences
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.ramcosta.composedestinations.annotation.Destination
 import com.ramcosta.composedestinations.annotation.RootNavGraph
 import com.ramcosta.composedestinations.navigation.DestinationsNavigator
-import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.hazeSource
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
 
@@ -299,9 +298,8 @@ fun MainPage(
         key = booleanPreferencesKey("floatingBottomNav"),
         defaultValue = LocalContext.current.appPreferences.floatingBottomNav
     )
-    // 毛玻璃底栏的模糊源:内容层录制为 haze 源,悬浮 Dock 从中采样(仅 API 31+ 启用)
-    val hazeState = remember { HazeState() }
-    val backdropBlurSupported = supportsBackdropBlur()
+    // 玻璃底栏的背景源：内容层录制为 LayerBackdrop，悬浮 Dock 用 backdrop 库采样（MeiloX 同款）
+    val dockBackdrop = rememberLayerBackdrop()
     val saveableStateHolder = rememberSaveableStateHolder()
     // 真悬浮布局:胶囊叠于内容之上,内容 edge-to-edge;经典贴底/Rail 模式沿用 Scaffold 避让
     val floatingLayout = navigationType == MainNavigationType.BOTTOM_NAVIGATION && floatingBottomNav
@@ -384,8 +382,8 @@ fun MainPage(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .then(
-                                    if (floatingLayout && backdropBlurSupported) {
-                                        Modifier.hazeSource(hazeState)
+                                    if (floatingLayout) {
+                                        Modifier.layerBackdrop(dockBackdrop)
                                     } else Modifier
                                 ),
                         ) { page ->
@@ -404,7 +402,7 @@ fun MainPage(
                                     onReselected = onReselected,
                                     onExpand = { bottomBarsExpanded = true },
                                     navigationItems = navigationItems,
-                                    hazeState = hazeState,
+                                    backdrop = dockBackdrop,
                                     onUserClick = onUserClick,
                                     onSearchClick = onSearchClick,
                                     compact = !bottomBarsExpanded,
