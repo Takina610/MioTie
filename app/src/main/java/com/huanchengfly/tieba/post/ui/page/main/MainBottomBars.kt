@@ -71,8 +71,8 @@ private val UserInfoBarHeight = 44.dp
 /** 个人信息条与导航胶囊的间距（展开态）。 */
 private val MainBottomBarGap = 8.dp
 
-/** 悬浮底栏距屏幕底部的边距（与系统导航栏 inset 取较大值，对齐 MeiloX 20dp 下限）。 */
-private val MainBottomBarMargin = 20.dp
+/** 悬浮底栏距屏幕底部的边距（与系统导航栏 inset 取较大值，对齐 MeiloX NavigationBarBottomMargin = 8dp）。 */
+private val MainBottomBarMargin = 8.dp
 
 /** 悬浮底栏水平外边距。 */
 private val MainBottomBarHorizontalMargin = 20.dp
