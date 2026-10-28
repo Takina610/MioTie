@@ -448,7 +448,7 @@
     <string name="home_empty_login">请登录之后查看你的关注。\n或者你也可以先去逛逛发现？</string>
     <string name="button_login">去登录</string>
     <string name="button_go_to_explore">随便看看</string>
-    <string name="title_empty_login">你还未登录</string>
+    <string name="title_empty_login">您还未登录</string>
     <string name="no_internet_connectivity">无互联网连接</string>
     <string name="connectivity_timeout">连接超时</string>
     <string name="title_no_internet_connectivity">网络找不到了</string>

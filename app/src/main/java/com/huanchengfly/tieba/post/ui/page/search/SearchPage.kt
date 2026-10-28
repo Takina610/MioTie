@@ -2,23 +2,25 @@ package com.huanchengfly.tieba.post.ui.page.search
 
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.PagerState
@@ -27,14 +29,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.ButtonDefaults
-import androidx.compose.material.ContentAlpha
 import androidx.compose.material.Icon
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.ProvideTextStyle
 import androidx.compose.material.Tab
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Search
@@ -47,16 +47,22 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -84,12 +90,13 @@ import com.huanchengfly.tieba.post.ui.widgets.compose.LazyLoadHorizontalPager
 import com.huanchengfly.tieba.post.ui.widgets.compose.MyBackHandler
 import com.huanchengfly.tieba.post.ui.widgets.compose.MyScaffold
 import com.huanchengfly.tieba.post.ui.widgets.compose.PagerTabIndicator
-import com.huanchengfly.tieba.post.ui.widgets.compose.SearchBox
 import com.huanchengfly.tieba.post.ui.widgets.compose.TabClickMenu
 import com.huanchengfly.tieba.post.ui.widgets.compose.TabRow
 import com.huanchengfly.tieba.post.ui.widgets.compose.TopAppBarContainer
 import com.huanchengfly.tieba.post.ui.widgets.compose.debounceClickable
 import com.huanchengfly.tieba.post.ui.widgets.compose.picker.ListSinglePicker
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.ramcosta.composedestinations.annotation.DeepLink
 import com.ramcosta.composedestinations.annotation.Destination
 import com.ramcosta.composedestinations.navigation.DestinationsNavigator
@@ -127,6 +134,9 @@ fun SearchPage(
     ),
 ) {
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val focusRequester = remember { FocusRequester() }
     val searchHistories by viewModel.uiState.collectPartialAsState(
         prop1 = SearchUiState::searchHistories,
         initial = persistentListOf()
@@ -149,26 +159,32 @@ fun SearchPage(
         derivedStateOf { suggestions.isNotEmpty() }
     }
 
-    var inputKeyword by remember { mutableStateOf("") }
+    var query by rememberSaveable(stateSaver = TextFieldValue.Saver) {
+        mutableStateOf(TextFieldValue())
+    }
+    // 只在首次进入搜索页时聚焦；从结果详情返回时保持不聚焦（对齐 MeiloX）
+    var autoFocusConsumed by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        if (!autoFocusConsumed) {
+            focusRequester.requestFocus()
+            keyboardController?.show()
+            autoFocusConsumed = true
+        }
+    }
 
     LaunchedEffect(Unit) {
-        snapshotFlow { inputKeyword }
+        snapshotFlow { query.text }
             .debounce(500)
             .collect {
                 viewModel.send(SearchUiIntent.KeywordInputChanged(it))
             }
     }
 
-    LaunchedEffect(keyword) {
-        if (keyword.isNotEmpty() && keyword != inputKeyword) {
-            inputKeyword = keyword
-        }
-    }
-
     MyBackHandler(
         enabled = !isKeywordEmpty,
         currentScreen = SearchPageDestination
     ) {
+        focusManager.clearFocus()
         viewModel.send(SearchUiIntent.SubmitKeyword(""))
     }
 
@@ -180,8 +196,37 @@ fun SearchPage(
         emitGlobalEvent(SearchThreadUiEvent.SwitchSortType(searchThreadSortType))
     }
     viewModel.onEvent<SearchUiEvent.KeywordChanged> {
-        inputKeyword = it.keyword
+        if (query.text != it.keyword) {
+            query = TextFieldValue(it.keyword, TextRange(it.keyword.length))
+        }
         if (it.keyword.isNotBlank()) emitGlobalEventSuspend(it)
+    }
+
+    val submitKeyword: (String) -> Unit = { rawKeyword ->
+        val newKeyword = rawKeyword.trim()
+        if (newKeyword.isNotEmpty()) {
+            query = TextFieldValue(newKeyword, TextRange(newKeyword.length))
+            focusManager.clearFocus()
+            keyboardController?.hide()
+            viewModel.send(SearchUiIntent.SubmitKeyword(newKeyword))
+        }
+    }
+    val clearQuery: () -> Unit = {
+        query = TextFieldValue()
+        if (!isKeywordEmpty) {
+            viewModel.send(SearchUiIntent.SubmitKeyword(""))
+        }
+        focusRequester.requestFocus()
+        keyboardController?.show()
+    }
+    val cancelSearch: () -> Unit = {
+        query = TextFieldValue()
+        focusManager.clearFocus()
+        keyboardController?.hide()
+        if (!isKeywordEmpty) {
+            viewModel.send(SearchUiIntent.SubmitKeyword(""))
+        }
+        navigator.navigateUp()
     }
 
     val pages by remember {
@@ -234,84 +279,89 @@ fun SearchPage(
         }
     }
     val pagerState = rememberPagerState { pages.size }
-    MyScaffold(
-        topBar = {
-            TopAppBarContainer(
+    val searchBackdrop = rememberLayerBackdrop()
+    val layoutDirection = LocalLayoutDirection.current
+    val searchBottomInsets = searchBottomBarBottomInsets()
+    Box(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .layerBackdrop(searchBackdrop)
+        ) {
+            MyScaffold(
                 topBar = {
-                    Box(
-                        modifier = Modifier
-                            .height(64.dp)
-                            .background(ExtendedTheme.colors.topBar)
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                    ) {
-                        SearchTopBar(
-                            keyword = inputKeyword,
-                            onKeywordChange = { inputKeyword = it },
-                            onKeywordSubmit = {
-                                viewModel.send(SearchUiIntent.SubmitKeyword(it))
-                            },
-                            onBack = {
-                                if (isKeywordEmpty) {
-                                    navigator.navigateUp()
-                                } else {
-                                    viewModel.send(SearchUiIntent.SubmitKeyword(""))
+                    if (!isKeywordEmpty) {
+                        TopAppBarContainer(topBar = {}) {
+                            SearchTabRow(pagerState = pagerState, pages = pages)
+                        }
+                    }
+                }
+            ) { paddingValues ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(
+                            PaddingValues(
+                                start = paddingValues.calculateStartPadding(layoutDirection),
+                                end = paddingValues.calculateEndPadding(layoutDirection),
+                            )
+                        )
+                        // 落地态没有顶部栏：自行避让状态栏（M2 Scaffold 的空 topBar 在此路径只给 0）
+                        .then(if (isKeywordEmpty) Modifier.statusBarsPadding() else Modifier)
+                        // 底部预留悬浮搜索栏高度，并随 IME 上浮（对齐 MeiloX 搜索页）
+                        .windowInsetsPadding(searchBottomInsets)
+                        .padding(bottom = SearchBottomBarHeight)
+                ) {
+                    if (!isKeywordEmpty) {
+                        ProvideNavigator(navigator = navigator) {
+                            LazyLoadHorizontalPager(
+                                state = pagerState,
+                                key = { pages[it].id },
+                                modifier = Modifier.fillMaxSize(),
+                            ) {
+                                pages[it].content()
+                            }
+                        }
+                    } else {
+                        if (showSuggestions) {
+                            SearchSuggestionList(
+                                suggestions = suggestions,
+                                onItemClick = { submitKeyword(it) }
+                            )
+                        } else {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .verticalScroll(rememberScrollState())
+                            ) {
+                                Container {
+                                    SearchHistoryList(
+                                        searchHistories = searchHistories,
+                                        onSearchHistoryClick = {
+                                            submitKeyword(it.content)
+                                        },
+                                        expanded = expanded,
+                                        onToggleExpand = { expanded = !expanded },
+                                        onDelete = { viewModel.send(SearchUiIntent.DeleteSearchHistory(it.id)) },
+                                        onClear = { viewModel.send(SearchUiIntent.ClearSearchHistory) }
+                                    )
                                 }
                             }
-                        )
-                    }
-                },
-            ) {
-                if (!isKeywordEmpty) {
-                    SearchTabRow(pagerState = pagerState, pages = pages)
-                }
-            }
-        }
-    ) { paddingValues ->
-        Box(modifier = Modifier
-            .fillMaxSize()
-            .padding(paddingValues)) {
-            if (!isKeywordEmpty) {
-                ProvideNavigator(navigator = navigator) {
-                    LazyLoadHorizontalPager(
-                        state = pagerState,
-                        key = { pages[it].id },
-                        modifier = Modifier.fillMaxSize(),
-                    ) {
-                        pages[it].content()
-                    }
-                }
-            } else {
-                if (showSuggestions) {
-                    SearchSuggestionList(
-                        suggestions = suggestions,
-                        onItemClick = {
-                            inputKeyword = it
-                            viewModel.send(SearchUiIntent.SubmitKeyword(it))
-                        }
-                    )
-                } else {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .verticalScroll(rememberScrollState())
-                    ) {
-                        Container {
-                            SearchHistoryList(
-                                searchHistories = searchHistories,
-                                onSearchHistoryClick = {
-                                    inputKeyword = it.content
-                                    viewModel.send(SearchUiIntent.SubmitKeyword(it.content))
-                                },
-                                expanded = expanded,
-                                onToggleExpand = { expanded = !expanded },
-                                onDelete = { viewModel.send(SearchUiIntent.DeleteSearchHistory(it.id)) },
-                                onClear = { viewModel.send(SearchUiIntent.ClearSearchHistory) }
-                            )
                         }
                     }
                 }
             }
         }
+        SearchBottomBar(
+            query = query,
+            onQueryChange = { query = it },
+            onSubmit = { submitKeyword(query.text) },
+            onClear = clearQuery,
+            onCancel = cancelSearch,
+            backdrop = searchBackdrop,
+            focusRequester = focusRequester,
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
     }
 }
 
@@ -550,65 +600,6 @@ private fun SearchHistoryList(
                     fontSize = 16.sp
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun SearchTopBar(
-    keyword: String,
-    onKeywordChange: (String) -> Unit,
-    onKeywordSubmit: (String) -> Unit = {},
-    onBack: () -> Unit = {},
-) {
-    SearchBox(
-        keyword = keyword,
-        onKeywordChange = onKeywordChange,
-        modifier = Modifier.fillMaxSize(),
-        onKeywordSubmit = onKeywordSubmit,
-        placeholder = {
-            Text(
-                text = stringResource(id = R.string.hint_search),
-                color = ExtendedTheme.colors.onTopBarSurface.copy(alpha = ContentAlpha.medium)
-            )
-        },
-        prependIcon = {
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(100))
-                    .debounceClickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = LocalIndication.current,
-                        role = Role.Button,
-                        onClick = onBack
-                    ),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                    contentDescription = stringResource(id = R.string.button_back)
-                )
-            }
-        },
-        shape = RoundedCornerShape(6.dp)
-    )
-}
-
-@Preview("SearchBox")
-@Composable
-fun PreviewSearchBox() {
-    var keyword by remember { mutableStateOf("") }
-    TiebaLiteTheme {
-        Box(
-            modifier = Modifier
-                .height(64.dp)
-                .background(ExtendedTheme.colors.topBar)
-                .padding(vertical = 8.dp, horizontal = 16.dp)
-        ) {
-            SearchTopBar(
-                keyword = keyword,
-                onKeywordChange = { keyword = it }
-            )
         }
     }
 }

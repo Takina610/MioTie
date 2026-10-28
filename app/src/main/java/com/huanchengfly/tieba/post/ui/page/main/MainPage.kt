@@ -5,6 +5,8 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.EaseInCubic
 import androidx.compose.animation.core.EaseOutCubic
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -39,6 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -47,7 +50,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.navigation.compose.currentBackStackEntryAsState
 import com.huanchengfly.tieba.post.LocalDevicePosture
+import com.huanchengfly.tieba.post.LocalNavController
 import com.huanchengfly.tieba.post.LocalNotificationCountFlow
 import com.huanchengfly.tieba.post.R
 import com.huanchengfly.tieba.post.arch.BaseComposeActivity.Companion.LocalWindowSizeClass
@@ -327,6 +332,15 @@ fun MainPage(
     // 个人信息条始终进入「我」页面（未登录也在页面内引导登录）
     val onUserClick: () -> Unit = { navigator.navigate(MyPageDestination) }
     val onSearchClick: () -> Unit = { navigator.navigate(SearchPageDestination) }
+    // 搜索页由底部悬浮搜索栏接管，底栏随导航淡出/恢复（对齐 MeiloX）
+    val navController = LocalNavController.current
+    val currentBackStackEntry by navController.currentBackStackEntryAsState()
+    val isSearchDestination = currentBackStackEntry?.destination?.route == SearchPageDestination.route
+    val dockAlpha by animateFloatAsState(
+        targetValue = if (isSearchDestination) 0f else 1f,
+        animationSpec = tween(durationMillis = 150, easing = LinearOutSlowInEasing),
+        label = "FloatingDockAlpha",
+    )
     ProvideNavigator(navigator = navigator) {
         NavigationWrapper(
             currentPosition = currentPosition,
@@ -394,7 +408,11 @@ fun MainPage(
                             }
                         }
                         if (floatingLayout) {
-                            Box(modifier = Modifier.align(Alignment.BottomCenter)) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .graphicsLayer { alpha = dockAlpha }
+                            ) {
                                 MainBottomBars(
                                     account = account,
                                     currentPosition = currentPosition,
