@@ -5,8 +5,6 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.EaseInCubic
-import androidx.compose.animation.core.LinearOutSlowInEasing
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.graphics.ExperimentalAnimationGraphicsApi
 import androidx.compose.animation.graphics.res.animatedVectorResource
@@ -314,8 +312,9 @@ fun MainPage(
     val saveableStateHolder = rememberSaveableStateHolder()
     // 真悬浮布局:胶囊叠于内容之上,内容 edge-to-edge;经典贴底/Rail 模式沿用 Scaffold 避让
     val floatingLayout = navigationType == MainNavigationType.BOTTOM_NAVIGATION && floatingBottomNav
-    // 滚动下沉：向下滚内容时底栏收成一行，向上滚或点击时展开（对齐 MeiloX）
-    var bottomBarsExpanded by remember { mutableStateOf(true) }
+    // 滚动下沉（对齐 MeiloX 1.55.1 NavigationBar）：10f 阈值；固定展开开启时不收放；
+    // 切 tab / 路由变化都不重置形态，只有点击下沉钮或打开固定开关才重新展开。
+    var bottomBarsExpanded by rememberSaveable { mutableStateOf(true) }
     val keepBottomBarExpandedState = rememberUpdatedState(keepBottomBarExpanded)
     val nestedScrollConnection = remember(floatingLayout) {
         object : NestedScrollConnection {
@@ -323,16 +322,11 @@ fun MainPage(
                 if (!floatingLayout) return Offset.Zero
                 // 「固定底部标签栏」开启时滚动不再收放底栏（对齐 MeiloX）
                 if (keepBottomBarExpandedState.value) return Offset.Zero
-                // 仅用户拖动内容时收放底栏（避免动画/程序滚动误触发）
-                if (source != NestedScrollSource.UserInput) return Offset.Zero
-                if (available.y < -4f) bottomBarsExpanded = false
-                if (available.y > 4f) bottomBarsExpanded = true
+                if (available.y < -10f) bottomBarsExpanded = false
+                if (available.y > 10f) bottomBarsExpanded = true
                 return Offset.Zero
             }
         }
-    }
-    LaunchedEffect(currentPosition) {
-        bottomBarsExpanded = true
     }
     LaunchedEffect(keepBottomBarExpanded) {
         if (keepBottomBarExpanded) bottomBarsExpanded = true
@@ -343,16 +337,15 @@ fun MainPage(
     val navigationBarsInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     // 个人信息条始终进入「我」页面（未登录也在页面内引导登录）
     val onUserClick: () -> Unit = { navigator.navigate(MyPageDestination) }
-    val onSearchClick: () -> Unit = { navigator.navigate(SearchPageDestination) }
-    // 搜索页由底部悬浮搜索栏接管，底栏随导航淡出/恢复（对齐 MeiloX）
+    // 对齐 MeiloX：搜索钮只负责把搜索页入栈一次并请求聚焦
     val navController = LocalNavController.current
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val isSearchDestination = currentBackStackEntry?.destination?.route == SearchPageDestination.route
-    val dockAlpha by animateFloatAsState(
-        targetValue = if (isSearchDestination) 0f else 1f,
-        animationSpec = tween(durationMillis = 150, easing = LinearOutSlowInEasing),
-        label = "FloatingDockAlpha",
-    )
+    val onSearchClick: () -> Unit = {
+        if (!isSearchDestination) {
+            navigator.navigate(SearchPageDestination(autoFocus = true))
+        }
+    }
     ProvideNavigator(navigator = navigator) {
         NavigationWrapper(
             currentPosition = currentPosition,
@@ -417,11 +410,9 @@ fun MainPage(
                             }
                         }
                         if (floatingLayout) {
-                            Box(
-                                modifier = Modifier
-                                    .align(Alignment.BottomCenter)
-                                    .graphicsLayer { alpha = dockAlpha }
-                            ) {
+                            // 底栏随主页一起走 MeiloX 的 homeAlphaTransition 交叉淡化；
+                            // 下沉形态不因路由切换重置。
+                            Box(modifier = Modifier.align(Alignment.BottomCenter)) {
                                 MainBottomBars(
                                     account = account,
                                     currentPosition = currentPosition,

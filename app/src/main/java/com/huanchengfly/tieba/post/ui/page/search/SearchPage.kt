@@ -12,15 +12,18 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.PagerState
@@ -39,6 +42,7 @@ import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -56,6 +60,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -77,6 +82,13 @@ import com.huanchengfly.tieba.post.arch.pageViewModel
 import com.huanchengfly.tieba.post.models.database.SearchHistory
 import com.huanchengfly.tieba.post.ui.common.theme.compose.ExtendedTheme
 import com.huanchengfly.tieba.post.ui.common.theme.compose.TiebaLiteTheme
+import com.huanchengfly.tieba.post.ui.glass.IosBottomSearchToolbar
+import com.huanchengfly.tieba.post.ui.glass.IosSearchBottomMargin
+import com.huanchengfly.tieba.post.ui.glass.IosSearchContentBottomPadding
+import com.huanchengfly.tieba.post.ui.glass.IosSearchHorizontalMargin
+import com.huanchengfly.tieba.post.ui.glass.LocalGlassBackdrop
+import com.huanchengfly.tieba.post.ui.glass.LocalGlassColors
+import com.huanchengfly.tieba.post.ui.glass.defaultGlassColors
 import com.huanchengfly.tieba.post.ui.page.ProvideNavigator
 import com.huanchengfly.tieba.post.ui.page.destinations.SearchPageDestination
 import com.huanchengfly.tieba.post.ui.page.search.forum.SearchForumPage
@@ -132,6 +144,7 @@ fun SearchPage(
     viewModel: SearchViewModel = pageViewModel<SearchUiIntent, SearchViewModel>(
         listOf(SearchUiIntent.Init)
     ),
+    autoFocus: Boolean = false,
 ) {
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
@@ -162,13 +175,13 @@ fun SearchPage(
     var query by rememberSaveable(stateSaver = TextFieldValue.Saver) {
         mutableStateOf(TextFieldValue())
     }
-    // 只在首次进入搜索页时聚焦；从结果详情返回时保持不聚焦（对齐 MeiloX）
-    var autoFocusConsumed by rememberSaveable { mutableStateOf(false) }
+    // 只在从底栏搜索钮进入时聚焦；从首页搜索框/探索/消息等入口进入保持不聚焦（对齐 MeiloX）
+    var autoFocusPending by rememberSaveable { mutableStateOf(autoFocus) }
     LaunchedEffect(Unit) {
-        if (!autoFocusConsumed) {
+        if (autoFocusPending) {
+            autoFocusPending = false
             focusRequester.requestFocus()
             keyboardController?.show()
-            autoFocusConsumed = true
         }
     }
 
@@ -211,13 +224,12 @@ fun SearchPage(
             viewModel.send(SearchUiIntent.SubmitKeyword(newKeyword))
         }
     }
-    val clearQuery: () -> Unit = {
-        query = TextFieldValue()
-        if (!isKeywordEmpty) {
+    // 清除按钮只清空输入并回到落地态，不额外抢焦点（对齐 MeiloX 搜索工具栏）
+    val onQueryChange: (TextFieldValue) -> Unit = { value ->
+        query = value
+        if (value.text.isEmpty() && !isKeywordEmpty) {
             viewModel.send(SearchUiIntent.SubmitKeyword(""))
         }
-        focusRequester.requestFocus()
-        keyboardController?.show()
     }
     val cancelSearch: () -> Unit = {
         query = TextFieldValue()
@@ -281,7 +293,20 @@ fun SearchPage(
     val pagerState = rememberPagerState { pages.size }
     val searchBackdrop = rememberLayerBackdrop()
     val layoutDirection = LocalLayoutDirection.current
-    val searchBottomInsets = searchBottomBarBottomInsets()
+    val density = LocalDensity.current
+    // 对齐 MeiloX 搜索页：底部避让取 IME 与系统栏的较大值
+    val searchBottomInset = maxOf(
+        with(density) { WindowInsets.ime.getBottom(this).toDp() },
+        WindowInsets.systemBars.asPaddingValues().calculateBottomPadding(),
+    )
+    val themeColors = ExtendedTheme.colors
+    val accentColor = MaterialTheme.colors.secondary
+    val glassColors = remember(themeColors.isNightMode, accentColor) {
+        defaultGlassColors(
+            isDark = themeColors.isNightMode,
+            accent = accentColor,
+        )
+    }
     Box(modifier = Modifier.fillMaxSize()) {
         Box(
             modifier = Modifier
@@ -308,9 +333,8 @@ fun SearchPage(
                         )
                         // 落地态没有顶部栏：自行避让状态栏（M2 Scaffold 的空 topBar 在此路径只给 0）
                         .then(if (isKeywordEmpty) Modifier.statusBarsPadding() else Modifier)
-                        // 底部预留悬浮搜索栏高度，并随 IME 上浮（对齐 MeiloX 搜索页）
-                        .windowInsetsPadding(searchBottomInsets)
-                        .padding(bottom = SearchBottomBarHeight)
+                        // 底部预留搜索工具栏位置，并随 IME 上浮（对齐 MeiloX 搜索页）
+                        .padding(bottom = searchBottomInset + IosSearchContentBottomPadding)
                 ) {
                     if (!isKeywordEmpty) {
                         ProvideNavigator(navigator = navigator) {
@@ -352,16 +376,25 @@ fun SearchPage(
                 }
             }
         }
-        SearchBottomBar(
-            query = query,
-            onQueryChange = { query = it },
-            onSubmit = { submitKeyword(query.text) },
-            onClear = clearQuery,
-            onCancel = cancelSearch,
-            backdrop = searchBackdrop,
-            focusRequester = focusRequester,
-            modifier = Modifier.align(Alignment.BottomCenter),
-        )
+        val toolbarModifier = Modifier
+            .align(Alignment.BottomCenter)
+            .fillMaxWidth()
+            .padding(horizontal = IosSearchHorizontalMargin)
+            .padding(bottom = searchBottomInset + IosSearchBottomMargin)
+        CompositionLocalProvider(LocalGlassColors provides glassColors) {
+            IosBottomSearchToolbar(
+                query = query,
+                onQueryChange = onQueryChange,
+                onSearch = { submitKeyword(it) },
+                onCancel = cancelSearch,
+                cancelLabel = stringResource(id = R.string.button_cancel),
+                placeholder = stringResource(id = R.string.title_search),
+                modifier = toolbarModifier,
+                backdrop = searchBackdrop,
+                focusRequester = focusRequester,
+                autoFocus = false,
+            )
+        }
     }
 }
 

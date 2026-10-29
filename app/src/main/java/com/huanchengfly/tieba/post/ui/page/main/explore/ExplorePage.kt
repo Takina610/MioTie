@@ -336,7 +336,7 @@ fun ExplorePage() {
                                     icon = Icons.Rounded.Search,
                                     contentDescription = stringResource(id = R.string.title_search)
                                 ) {
-                                    navigator.navigate(SearchPageDestination)
+                                    navigator.navigate(SearchPageDestination())
                                 }
                             },
                         )

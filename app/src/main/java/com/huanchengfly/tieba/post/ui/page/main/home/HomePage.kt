@@ -481,7 +481,7 @@ fun HomePage(
         ) {
             Column {
                 SearchBox(modifier = Modifier.padding(bottom = 4.dp)) {
-                    navigator.navigate(SearchPageDestination)
+                    navigator.navigate(SearchPageDestination())
                 }
                 StateScreen(
                     isEmpty = showEmptyState,

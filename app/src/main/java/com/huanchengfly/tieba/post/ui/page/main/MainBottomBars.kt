@@ -31,7 +31,6 @@ import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ChevronRight
-import androidx.compose.material.icons.rounded.Search
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.State
@@ -66,6 +65,8 @@ import com.huanchengfly.tieba.post.ui.glass.GlassSurfaceStyle
 import com.huanchengfly.tieba.post.ui.glass.GlassTabItem
 import com.huanchengfly.tieba.post.ui.glass.LocalGlassBackdrop
 import com.huanchengfly.tieba.post.ui.glass.LocalGlassColors
+import com.huanchengfly.tieba.post.ui.glass.SfIcon
+import com.huanchengfly.tieba.post.ui.glass.SfSymbol
 import com.huanchengfly.tieba.post.ui.glass.defaultGlassColors
 import com.huanchengfly.tieba.post.ui.widgets.compose.Avatar
 import com.huanchengfly.tieba.post.ui.widgets.compose.AvatarPlaceholder
@@ -273,13 +274,13 @@ private fun GlassSearchButton(
         morphProgress = compactProgress,
         morphCaptureWidth = SearchHostSize,
     ) {
-        Icon(
-            imageVector = Icons.Rounded.Search,
-            contentDescription = null,
+        SfIcon(
+            symbol = SfSymbol.Search,
+            contentDescription = stringResource(id = R.string.button_search),
             tint = LocalGlassColors.current.content,
-            modifier = Modifier
-                .size(26.dp)
-                .then(iconScaleModifier),
+            size = 26.dp,
+            weight = FontWeight.SemiBold,
+            modifier = iconScaleModifier,
         )
     }
 }

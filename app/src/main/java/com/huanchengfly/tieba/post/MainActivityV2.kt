@@ -65,6 +65,7 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.lifecycle.flowWithLifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.plusAssign
@@ -91,6 +92,8 @@ import com.huanchengfly.tieba.post.rememberPreferenceAsState
 import com.huanchengfly.tieba.post.ui.common.theme.compose.ExtendedTheme
 import com.huanchengfly.tieba.post.ui.page.NavGraphs
 import com.huanchengfly.tieba.post.ui.page.destinations.ForumPageDestination
+import com.huanchengfly.tieba.post.ui.page.destinations.MainPageDestination
+import com.huanchengfly.tieba.post.ui.page.destinations.SearchPageDestination
 import com.huanchengfly.tieba.post.ui.page.destinations.ThreadPageDestination
 import com.huanchengfly.tieba.post.ui.utils.DevicePosture
 import com.huanchengfly.tieba.post.ui.utils.isBookPosture
@@ -653,24 +656,43 @@ private object TiebaNavHostDefaults {
     private val SlideSpec = tween<IntOffset>(500, easing = NavEasing)
     private val FadeSpec = tween<Float>(500, easing = NavEasing)
 
+    // MeiloX 把 Search 归入 Screen.MainScreens，主页与搜索页之间用
+    // homeAlphaTransition() = fadeIn() togetherWith fadeOut()，不做横向滑动。
+    private val MainCrossfadeRoutes = setOf(
+        MainPageDestination.route,
+        SearchPageDestination.route,
+    )
+
+    private fun AnimatedContentTransitionScope<NavBackStackEntry>.usesMainCrossfade(): Boolean =
+        initialState.destination.route in MainCrossfadeRoutes &&
+            targetState.destination.route in MainCrossfadeRoutes
+
     @Composable
     @OptIn(ExperimentalMaterialApi::class, ExperimentalAnimationApi::class)
     fun rememberNavHostEngine() = rememberAnimatedNavHostEngine(
         navHostContentAlignment = Alignment.TopStart,
         rootDefaultAnimations = RootNavGraphDefaultAnimations(
             enterTransition = {
-                slideInHorizontally(SlideSpec) { it }
+                if (usesMainCrossfade()) fadeIn() else slideInHorizontally(SlideSpec) { it }
             },
             // 旧页滑出 1/4 视差并压暗至 50%,由不透明的新页盖住后再移除
             // (对齐 miuix NavDisplayTransitionEffects.dimAmount;页面背景由 PageBackground 保证)
             exitTransition = {
-                slideOutHorizontally(SlideSpec) { -it / 4 } + fadeOut(FadeSpec, targetAlpha = 0.5f)
+                if (usesMainCrossfade()) {
+                    fadeOut()
+                } else {
+                    slideOutHorizontally(SlideSpec) { -it / 4 } + fadeOut(FadeSpec, targetAlpha = 0.5f)
+                }
             },
             popEnterTransition = {
-                slideInHorizontally(SlideSpec) { -it / 4 } + fadeIn(FadeSpec, initialAlpha = 0.5f)
+                if (usesMainCrossfade()) {
+                    fadeIn()
+                } else {
+                    slideInHorizontally(SlideSpec) { -it / 4 } + fadeIn(FadeSpec, initialAlpha = 0.5f)
+                }
             },
             popExitTransition = {
-                slideOutHorizontally(SlideSpec) { it }
+                if (usesMainCrossfade()) fadeOut() else slideOutHorizontally(SlideSpec) { it }
             },
         ),
     )
