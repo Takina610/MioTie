@@ -10,20 +10,28 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import com.stoyanvuchev.systemuibarstweaker.SystemBarStyle
 import com.stoyanvuchev.systemuibarstweaker.SystemUIBarsTweaker
 import com.stoyanvuchev.systemuibarstweaker.rememberSystemUIBarsTweaker
 import com.huanchengfly.tieba.post.activities.BaseActivity
+import com.huanchengfly.tieba.post.collectPreferenceAsState
+import com.huanchengfly.tieba.post.dataStore
 import com.huanchengfly.tieba.post.ui.common.theme.compose.TiebaLiteTheme
 import com.huanchengfly.tieba.post.ui.common.windowsizeclass.WindowSizeClass
 import com.huanchengfly.tieba.post.ui.common.windowsizeclass.calculateWindowSizeClass
+import com.huanchengfly.tieba.post.ui.glass.GlassAppearance
+import com.huanchengfly.tieba.post.ui.glass.LocalGlassAppearance
 import com.huanchengfly.tieba.post.utils.AccountUtil.LocalAccountProvider
 import com.huanchengfly.tieba.post.utils.ThemeUtil
 
@@ -100,8 +108,24 @@ abstract class BaseComposeActivity : BaseActivity<Nothing>() {
                 }
 
                 LocalAccountProvider {
+                    val context = LocalContext.current
+                    val liquidGlassEnabled by context.dataStore.collectPreferenceAsState(
+                        key = booleanPreferencesKey("liquidGlassEnabled"),
+                        defaultValue = true,
+                    )
+                    val reduceTransparency by context.dataStore.collectPreferenceAsState(
+                        key = booleanPreferencesKey("reduceTransparency"),
+                        defaultValue = false,
+                    )
+                    val glassAppearance = remember(liquidGlassEnabled, reduceTransparency) {
+                        GlassAppearance(
+                            liquidGlassEnabled = liquidGlassEnabled,
+                            reduceTransparency = reduceTransparency,
+                        )
+                    }
                     CompositionLocalProvider(
-                        LocalWindowSizeClass provides calculateWindowSizeClass(activity = this)
+                        LocalWindowSizeClass provides calculateWindowSizeClass(activity = this),
+                        LocalGlassAppearance provides glassAppearance,
                     ) {
                         Content()
                     }

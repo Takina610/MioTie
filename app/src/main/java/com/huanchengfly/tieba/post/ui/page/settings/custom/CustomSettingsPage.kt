@@ -30,6 +30,7 @@ import androidx.compose.material.Icon
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.BlurOn
 import androidx.compose.material.icons.rounded.BrightnessAuto
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.DarkMode
@@ -39,9 +40,12 @@ import androidx.compose.material.icons.rounded.FontDownload
 import androidx.compose.material.icons.rounded.FormatColorFill
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.NightsStay
+import androidx.compose.material.icons.rounded.Opacity
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.PhotoSizeSelectActual
+import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Upcoming
+import androidx.compose.material.icons.rounded.VerticalAlignBottom
 import androidx.compose.material.icons.rounded.ViewAgenda
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -148,6 +152,10 @@ fun CustomSettingsPage(
         defaultValue = false
     )
     val dynamicSelected = useDynamicColorTheme && !useSeedTheme
+    val reduceTransparency by context.dataStore.collectPreferenceAsState(
+        key = booleanPreferencesKey("reduceTransparency"),
+        defaultValue = false
+    )
 
     val currentIsNight = ThemeUtil.isNightMode()
     val oldTheme by rememberPreferenceAsState(
@@ -356,6 +364,39 @@ fun CustomSettingsPage(
                             }
                         )
                     }
+                }
+            }
+
+            // ── 界面（对齐 MeiloX 外观设置的三项）
+            item {
+                SectionLabel(text = stringResource(id = R.string.title_interface), icon = Icons.Rounded.Tune)
+            }
+            item {
+                AppearanceCard {
+                    SwitchSettingRow(
+                        icon = Icons.Rounded.VerticalAlignBottom,
+                        title = stringResource(id = R.string.title_fixed_bottom_bar),
+                        summary = stringResource(id = R.string.summary_fixed_bottom_bar),
+                        key = "keepBottomBarExpanded",
+                        defaultValue = false,
+                    )
+                    CardDivider()
+                    SwitchSettingRow(
+                        icon = Icons.Rounded.BlurOn,
+                        title = stringResource(id = R.string.title_liquid_glass),
+                        summary = stringResource(id = R.string.summary_liquid_glass),
+                        key = "liquidGlassEnabled",
+                        defaultValue = true,
+                        enabled = !reduceTransparency,
+                    )
+                    CardDivider()
+                    SwitchSettingRow(
+                        icon = Icons.Rounded.Opacity,
+                        title = stringResource(id = R.string.title_reduce_transparency),
+                        summary = stringResource(id = R.string.summary_reduce_transparency),
+                        key = "reduceTransparency",
+                        defaultValue = false,
+                    )
                 }
             }
 

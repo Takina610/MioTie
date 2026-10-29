@@ -159,6 +159,10 @@ open class AppPreferencesUtils private constructor(ctx: Context) {
     var liftUpBottomBar by DataStoreDelegates.boolean(defaultValue = true)
     var floatingBottomNav by DataStoreDelegates.boolean(defaultValue = true)
 
+    var keepBottomBarExpanded by DataStoreDelegates.boolean(defaultValue = false)
+    var liquidGlassEnabled by DataStoreDelegates.boolean(defaultValue = true)
+    var reduceTransparency by DataStoreDelegates.boolean(defaultValue = false)
+
     var listItemsBackgroundIntermixed by DataStoreDelegates.boolean(defaultValue = true)
 
     var listSingle by DataStoreDelegates.boolean(defaultValue = false)

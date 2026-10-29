@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.addOutline
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
+import com.huanchengfly.tieba.post.ui.glass.LocalGlassAppearance
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.emptyBackdrop
 import com.kyant.backdrop.drawBackdrop
@@ -89,11 +90,12 @@ fun GlassCapsule(
     blurSupported: Boolean = supportsBackdropBlur(),
     content: @Composable BoxScope.() -> Unit,
 ) {
-    val useBackdrop = blurSupported && backdrop != null
-    val surfaceAlpha = if (useBackdrop) {
-        tint.alpha * 1.25f * if (isNightMode) 0.6f else 0.5f
-    } else {
-        tint.alpha
+    val reduceTransparency = LocalGlassAppearance.current.reduceTransparency
+    val useBackdrop = !reduceTransparency && blurSupported && backdrop != null
+    val surfaceAlpha = when {
+        reduceTransparency -> 1f
+        useBackdrop -> tint.alpha * 1.25f * if (isNightMode) 0.6f else 0.5f
+        else -> tint.alpha
     }
     val shadowAlpha = if (isNightMode) 0.12f else 0.07f
     Box(

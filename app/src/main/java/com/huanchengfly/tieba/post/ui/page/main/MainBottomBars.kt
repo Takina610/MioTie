@@ -60,12 +60,10 @@ import com.huanchengfly.tieba.post.models.database.Account
 import com.huanchengfly.tieba.post.ui.common.theme.compose.ExtendedColors
 import com.huanchengfly.tieba.post.ui.common.theme.compose.ExtendedTheme
 import com.huanchengfly.tieba.post.ui.glass.CompactBottomControlIconSize
-import com.huanchengfly.tieba.post.ui.glass.GlassAppearance
 import com.huanchengfly.tieba.post.ui.glass.GlassBottomBar
 import com.huanchengfly.tieba.post.ui.glass.GlassIconButton
 import com.huanchengfly.tieba.post.ui.glass.GlassSurfaceStyle
 import com.huanchengfly.tieba.post.ui.glass.GlassTabItem
-import com.huanchengfly.tieba.post.ui.glass.LocalGlassAppearance
 import com.huanchengfly.tieba.post.ui.glass.LocalGlassBackdrop
 import com.huanchengfly.tieba.post.ui.glass.LocalGlassColors
 import com.huanchengfly.tieba.post.ui.glass.defaultGlassColors
@@ -182,7 +180,6 @@ fun MainBottomBars(
                 )
                 CompositionLocalProvider(
                     LocalGlassColors provides glassColors,
-                    LocalGlassAppearance provides GlassAppearance(),
                     LocalGlassBackdrop provides backdrop,
                 ) {
                     GlassBottomBar(

@@ -556,6 +556,13 @@
     <string name="summary_predictive_back">返回手势时实时预览页面退场动画（Android 13+，关闭后返回仍正常但无预览）</string>
     <string name="title_floating_bottom_nav">悬浮底栏</string>
     <string name="summary_floating_bottom_nav">主页底栏使用悬浮胶囊样式，关闭后为传统贴底样式</string>
+    <string name="title_fixed_bottom_bar">固定底部标签栏</string>
+    <string name="summary_fixed_bottom_bar">滚动页面时，底部标签栏保持展开。</string>
+    <string name="title_liquid_glass">液态玻璃</string>
+    <string name="summary_liquid_glass">使用光线折射和流动玻璃效果，关闭后显示普通毛玻璃。</string>
+    <string name="title_reduce_transparency">降低透明度</string>
+    <string name="summary_reduce_transparency">使用不透明背景，让控件和文字更清晰。</string>
+    <string name="title_interface">界面</string>
     <string name="title_dark_style_grey">深邃灰</string>
     <string name="title_dark_style_amoled">纯黑</string>
     <string name="title_dark_style">深色样式</string>

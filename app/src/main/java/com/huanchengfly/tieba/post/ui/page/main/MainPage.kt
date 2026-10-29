@@ -305,6 +305,10 @@ fun MainPage(
         key = booleanPreferencesKey("floatingBottomNav"),
         defaultValue = LocalContext.current.appPreferences.floatingBottomNav
     )
+    val keepBottomBarExpanded by rememberPreferenceAsState(
+        key = booleanPreferencesKey("keepBottomBarExpanded"),
+        defaultValue = LocalContext.current.appPreferences.keepBottomBarExpanded
+    )
     // 玻璃底栏的背景源：内容层录制为 LayerBackdrop，悬浮 Dock 用 backdrop 库采样（MeiloX 同款）
     val dockBackdrop = rememberLayerBackdrop()
     val saveableStateHolder = rememberSaveableStateHolder()
@@ -312,10 +316,13 @@ fun MainPage(
     val floatingLayout = navigationType == MainNavigationType.BOTTOM_NAVIGATION && floatingBottomNav
     // 滚动下沉：向下滚内容时底栏收成一行，向上滚或点击时展开（对齐 MeiloX）
     var bottomBarsExpanded by remember { mutableStateOf(true) }
+    val keepBottomBarExpandedState = rememberUpdatedState(keepBottomBarExpanded)
     val nestedScrollConnection = remember(floatingLayout) {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
                 if (!floatingLayout) return Offset.Zero
+                // 「固定底部标签栏」开启时滚动不再收放底栏（对齐 MeiloX）
+                if (keepBottomBarExpandedState.value) return Offset.Zero
                 // 仅用户拖动内容时收放底栏（避免动画/程序滚动误触发）
                 if (source != NestedScrollSource.UserInput) return Offset.Zero
                 if (available.y < -4f) bottomBarsExpanded = false
@@ -326,6 +333,9 @@ fun MainPage(
     }
     LaunchedEffect(currentPosition) {
         bottomBarsExpanded = true
+    }
+    LaunchedEffect(keepBottomBarExpanded) {
+        if (keepBottomBarExpanded) bottomBarsExpanded = true
     }
     // M2 Scaffold 不做系统 insets 避让(contentWindowInsets 传的是全 0),悬浮模式下底部
     // 悬浮区(个人信息条 + 导航胶囊)需在此统一补足:呼吸位 = 悬浮区总高 + 呼吸(8dp) + 系统导航栏,
@@ -421,7 +431,7 @@ fun MainPage(
                                     backdrop = dockBackdrop,
                                     onUserClick = onUserClick,
                                     onSearchClick = onSearchClick,
-                                    compact = !bottomBarsExpanded,
+                                    compact = !bottomBarsExpanded && !keepBottomBarExpanded,
                                     themeColors = themeColors,
                                 )
                             }
