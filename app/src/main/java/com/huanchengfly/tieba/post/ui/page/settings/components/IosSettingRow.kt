@@ -24,6 +24,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.huanchengfly.tieba.post.ui.glass.IosTypography
+import com.huanchengfly.tieba.post.ui.glass.iosRowClickable
 import com.huanchengfly.tieba.post.ui.glass.LocalGlassColors
 import com.huanchengfly.tieba.post.ui.glass.LocalGroupedListIconColor
 import com.huanchengfly.tieba.post.ui.glass.LocalMergedGlassCards
@@ -67,7 +68,7 @@ internal fun IosSettingRow(
                 // 有 trailing 时不整行可点：开关自己处理手势，行再响应一次会 toggle 两回，
                 // 表现为「值变了但界面没变」、要多点几次才回到正确状态。
                 if (onClick != null && enabled && trailing == null) {
-                    Modifier.clickable(role = Role.Button, onClick = onClick)
+                    Modifier.iosRowClickable(onClick)
                 } else {
                     Modifier
                 }
@@ -82,7 +83,7 @@ internal fun IosSettingRow(
                 .weight(1f)
                 .then(
                     if (onClick != null && enabled && trailing != null) {
-                        Modifier.clickable(role = Role.Button, onClick = onClick)
+                        Modifier.iosRowClickable(onClick)
                     } else {
                         Modifier
                     }

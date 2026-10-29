@@ -117,7 +117,7 @@ fun IosListRow(
             }
             .then(
                 if (onClick != null) {
-                    Modifier.clickable(role = Role.Button, onClick = onClick)
+                    Modifier.iosRowClickable(onClick)
                 } else {
                     Modifier
                 }
@@ -200,3 +200,18 @@ fun IosDisclosureIndicator(
         )
     }
 }
+
+/**
+ * iOS 列表行的点击反馈：没有 Material 涟漪。
+ *
+ * iOS 的表格行按下时不会给整行蒙一层灰底；默认的 `Modifier.clickable` 会走
+ * Material 的 ripple indication，在本项目（M2 主题）上尤其明显，观感与 iOS 不符。
+ * 需要按压反馈时由行内控件（如玻璃开关）自己提供，行本身保持静止。
+ */
+internal fun Modifier.iosRowClickable(onClick: () -> Unit): Modifier =
+    this.clickable(
+        interactionSource = null,
+        indication = null,
+        role = Role.Button,
+        onClick = onClick,
+    )
