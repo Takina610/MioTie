@@ -16,14 +16,18 @@ import androidx.datastore.preferences.core.edit
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 
 /** Compose 侧的偏好读写：只读收集不会写盘，用户改动会立即在进程级作用域落盘。 */
 /**
  * 可读写偏好。语义：
- * 1. 只读状态下不会写盘——首帧的 [defaultValue] 绝不覆盖已存值；
+ * 1. 首帧就取到 DataStore 里的真实值，[defaultValue] 只作兜底——否则开关会先画成默认状态，
+ *    再动画到已存状态，表现为进出页面时「开→关」的多余动画；
  * 2. 用户改动**立即**写盘，且写盘跑在进程级作用域里，页面随即被销毁/切走也不会丢；
  * 3. DataStore 里的真实值到达时同步进状态（外部改动也能反映到开关上）。
  *
@@ -36,8 +40,11 @@ fun <T> rememberPreferenceAsMutableState(
     defaultValue: T
 ): MutableState<T> {
     val dataStore = LocalContext.current.dataStore
+    LaunchedEffect(dataStore) { startPreferenceSnapshot(dataStore) }
     // 只有「外部同步」和「用户输入」两个来源会改变它
-    val state = remember { mutableStateOf(defaultValue) }
+    val state = remember(dataStore, key) {
+        mutableStateOf(readPreferenceInitial(dataStore, key, defaultValue))
+    }
     val applier = remember(dataStore, key) {
         PreferenceApplier<T>(dataStore)
     }
@@ -59,6 +66,34 @@ fun <T> rememberPreferenceAsMutableState(
             onWrite = { value -> ProcessScope.launch { applier.write(key, value) } },
         )
     }
+}
+
+/** 进程级偏好快照：首次订阅后一直保持最新，供后续页面首帧同步取值。 */
+private val preferenceSnapshot = MutableStateFlow<Preferences?>(null)
+
+@Volatile
+private var snapshotStarted = false
+
+/** 启动快照订阅（进程内只启动一次）。 */
+private fun startPreferenceSnapshot(dataStore: DataStore<Preferences>) {
+    if (snapshotStarted) return
+    snapshotStarted = true
+    ProcessScope.launch {
+        dataStore.data.collect { preferenceSnapshot.value = it }
+    }
+}
+
+/**
+ * 首帧取值：优先读进程级快照，冷启动尚未预热时同步读一次 DataStore。
+ * DataStore 只在进程内首次读盘，之后常驻内存，这里的同步读不会形成持续开销。
+ */
+private fun <T> readPreferenceInitial(
+    dataStore: DataStore<Preferences>,
+    key: Preferences.Key<T>,
+    defaultValue: T
+): T {
+    preferenceSnapshot.value?.let { return it[key] ?: defaultValue }
+    return runBlocking { dataStore.data.first()[key] } ?: defaultValue
 }
 
 /**
@@ -113,7 +148,10 @@ fun <T> rememberPreferenceAsState(
     defaultValue: T
 ): State<T> {
     val dataStore = LocalContext.current.dataStore
-    val state = remember { mutableStateOf(defaultValue) }
+    LaunchedEffect(dataStore) { startPreferenceSnapshot(dataStore) }
+    val state = remember(dataStore, key) {
+        mutableStateOf(readPreferenceInitial(dataStore, key, defaultValue))
+    }
 
     LaunchedEffect(key) {
         dataStore.data.map { it[key] ?: defaultValue }.distinctUntilChanged()
