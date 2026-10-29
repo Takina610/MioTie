@@ -1,19 +1,16 @@
 package com.huanchengfly.tieba.post.ui.page.main
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.EaseInCubic
-import androidx.compose.animation.core.EaseOutCubic
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.animation.graphics.ExperimentalAnimationGraphicsApi
 import androidx.compose.animation.graphics.res.animatedVectorResource
 import androidx.compose.animation.graphics.vector.AnimatedImageVector
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,11 +26,14 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.SaveableStateHolder
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
@@ -45,8 +45,10 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.dp
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
@@ -386,13 +388,12 @@ fun MainPage(
                             .fillMaxSize()
                             .nestedScroll(nestedScrollConnection)
                     ) {
-                        AnimatedContent(
-                            targetState = currentPosition,
-                            transitionSpec = {
-                                (fadeIn(tween(durationMillis = 220, delayMillis = 60, easing = EaseOutCubic)) togetherWith
-                                        fadeOut(tween(durationMillis = 140, easing = EaseInCubic)))
-                            },
-                            label = "mainPageContent",
+                        KeepAliveTabHost(
+                            currentId = navigationItems.getOrElse(currentPosition) {
+                                navigationItems.last()
+                            }.id,
+                            pageIds = navigationItems.map { it.id },
+                            saveableStateHolder = saveableStateHolder,
                             modifier = Modifier
                                 .fillMaxSize()
                                 .then(
@@ -400,11 +401,9 @@ fun MainPage(
                                         Modifier.layerBackdrop(dockBackdrop)
                                     } else Modifier
                                 ),
-                        ) { page ->
+                        ) { id ->
                             Box(modifier = Modifier.padding(paddingValues)) {
-                                saveableStateHolder.SaveableStateProvider(navigationItems[page].id) {
-                                    navigationItems[page].content()
-                                }
+                                navigationItems.firstOrNull { it.id == id }?.content?.invoke()
                             }
                         }
                         if (floatingLayout) {
@@ -434,6 +433,77 @@ fun MainPage(
     }
     BackHandler(enabled = currentPosition != 0) {
         currentPosition = 0
+    }
+}
+
+/**
+ * 顶部 tab 的保活宿主：页面首次访问后保留组合，切换时只把旧页透明度降到 0。
+ * 页面只在测量/放置阶段判断可见性，透明度动画不会触发重组。
+ */
+@Composable
+private fun KeepAliveTabHost(
+    currentId: String,
+    pageIds: List<String>,
+    saveableStateHolder: SaveableStateHolder,
+    modifier: Modifier = Modifier,
+    content: @Composable (id: String) -> Unit,
+) {
+    val visitedIds = remember { mutableStateListOf(currentId) }
+    val pageAlphas = remember { mutableMapOf<String, Animatable<Float, AnimationVector1D>>() }
+    LaunchedEffect(currentId, pageIds) {
+        val available = pageIds.toSet()
+        // 关闭/开启「动态」等 tab 列表变化时，丢弃已不存在的页面。
+        visitedIds.retainAll(available)
+        pageAlphas.keys.retainAll(available)
+        if (currentId !in visitedIds) visitedIds.add(currentId)
+    }
+    val pages = visitedIds.map { id ->
+        val alpha = pageAlphas.getOrPut(id) { Animatable(1f) }
+        LaunchedEffect(id, currentId) {
+            if (id == currentId) {
+                alpha.snapTo(1f)
+            } else if (alpha.value > 0f) {
+                alpha.animateTo(0f, tween(durationMillis = 200, easing = EaseInCubic))
+            }
+        }
+        id to alpha
+    }
+    Layout(
+        content = {
+            pages.forEach { (id, alpha) ->
+                key(id) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer { this.alpha = alpha.value }
+                            .then(
+                                if (id != currentId) {
+                                    Modifier.clearAndSetSemantics {}
+                                } else {
+                                    Modifier
+                                }
+                            ),
+                    ) {
+                        saveableStateHolder.SaveableStateProvider(id) {
+                            content(id)
+                        }
+                    }
+                }
+            }
+        },
+        modifier = modifier,
+    ) { measurables, constraints ->
+        val placeables = measurables.map { it.measure(constraints) }
+        val current = pages.indexOfFirst { (id, _) -> id == currentId }
+        layout(constraints.maxWidth, constraints.maxHeight) {
+            // 当前页在底层；淡出中的旧页盖在上面，透明度降低时露出新页。
+            placeables.getOrNull(current)?.placeRelative(0, 0)
+            placeables.forEachIndexed { index, placeable ->
+                if (index != current && pages[index].second.value > 0f) {
+                    placeable.placeRelative(0, 0)
+                }
+            }
+        }
     }
 }
 

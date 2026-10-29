@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
@@ -55,6 +54,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
@@ -734,24 +734,31 @@ fun <T> GlassBottomBar(
 
         // 选中项角标画在指示器玻璃之上：lens source 会把整层染成 accent，
         // 角标若留在 tab 内容里会变成一颗没有数字的实心圆点。
-        selectedItem.badgeText?.takeIf { compactState.value < CompactIndicatorFadeStart }?.let { text ->
-            val surfaceWidth = morphSurfaceWidthPx(fullWidthPx, compactWidthPx, compactState.value)
-            val tabWidth = ((surfaceWidth - paddingPx * 2f) / tabItems.size).coerceAtLeast(1f)
-            val tabCenter = paddingPx + (dragAnimation.value + 0.5f) * tabWidth
-            val morphCenter = lerp(tabCenter, compactWidthPx / 2f, compactState.value)
-            val fraction = (offsetAnimation.value / fullWidthPx).fastCoerceIn(-1f, 1f)
-            val panelOffset = paddingPx * fraction.sign * EaseOut.transform(abs(fraction))
-            val contentScale = visibleTabContentScale()
+        val badgeVisible by remember(compactState) {
+            derivedStateOf { compactState.value < CompactIndicatorFadeStart }
+        }
+        selectedItem.badgeText?.takeIf { badgeVisible }?.let { text ->
             Box(
                 modifier = Modifier
                     .align(Alignment.TopStart)
+                    // 位置与缩放只在 layout/draw 阶段读取进度，避免弹簧期间每帧重组。
                     .offset {
+                        val progress = compactState.value
+                        val surfaceWidth =
+                            morphSurfaceWidthPx(fullWidthPx, compactWidthPx, progress)
+                        val tabWidth = ((surfaceWidth - paddingPx * 2f) / tabItems.size)
+                            .coerceAtLeast(1f)
+                        val tabCenter = paddingPx + (dragAnimation.value + 0.5f) * tabWidth
+                        val morphCenter = lerp(tabCenter, compactWidthPx / 2f, progress)
+                        val fraction = (offsetAnimation.value / fullWidthPx).fastCoerceIn(-1f, 1f)
+                        val panelOffset = paddingPx * fraction.sign * EaseOut.transform(abs(fraction))
                         IntOffset(
                             x = (morphCenter + panelOffset + 7.dp.toPx()).roundToInt(),
                             y = 4.5.dp.toPx().roundToInt(),
                         )
                     }
                     .graphicsLayer {
+                        val contentScale = visibleTabContentScale()
                         scaleX = contentScale
                         scaleY = contentScale
                     },
@@ -933,15 +940,30 @@ private fun <T> BoxScope.MorphingSelectedNavigationItem(
 ) {
     val sharedTabScale = LocalLiquidTabScale.current
     val density = LocalDensity.current
-    val currentContentWidthPx = morphSurfaceWidthPx(
+    // 宽度随下沉进度变化：放到 layout 阶段读取，弹簧期间不重组选中项。
+    val selectedTabWidthModifier = remember(
+        compactProgress,
         fullWidthPx,
         compactWidthPx,
-        compactProgress.value.coerceIn(0f, 1f),
-    ) - 2f * horizontalInsetPx
-    val selectedTabWidth = with(density) {
-        (currentContentWidthPx / itemCount)
-            .coerceAtLeast(ExpandedNavigationIconSize.toPx())
-            .toDp()
+        horizontalInsetPx,
+        itemCount,
+        density,
+    ) {
+        Modifier.layout { measurable, constraints ->
+            val progress = compactProgress.value.coerceIn(0f, 1f)
+            val currentSurfaceWidth = morphSurfaceWidthPx(
+                fullWidthPx,
+                compactWidthPx,
+                progress,
+            )
+            val currentContentWidth = currentSurfaceWidth - 2f * horizontalInsetPx
+            val minWidthPx = ExpandedNavigationIconSize.toPx()
+            val widthPx = (currentContentWidth / itemCount)
+                .coerceAtLeast(minWidthPx)
+                .roundToInt()
+            val placeable = measurable.measure(Constraints.fixed(widthPx, constraints.maxHeight))
+            layout(widthPx, constraints.maxHeight) { placeable.placeRelative(0, 0) }
+        }
     }
     Box(
         modifier = Modifier
@@ -976,8 +998,7 @@ private fun <T> BoxScope.MorphingSelectedNavigationItem(
         contentAlignment = Alignment.Center,
     ) {
         Column(
-            modifier = Modifier
-                .width(selectedTabWidth)
+            modifier = selectedTabWidthModifier
                 .fillMaxHeight(),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,

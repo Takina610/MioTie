@@ -46,6 +46,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -166,20 +167,11 @@ fun MainBottomBars(
                 end = MainBottomBarHorizontalMargin,
             ),
     ) {
-        val progress = compactProgress.value.coerceIn(0f, 1f)
         val usableWidth = maxWidth
         val gap = MainBottomBarGap
         val expandedDockWidth = usableWidth - SearchHostSize - gap
-        // 展开: 44 + 8 + 64；下沉: 64（GlassBottomBar 宿主保持 64，内部缩到 44）
-        val overlayHeight = lerp(UserInfoBarHeight + gap + DockNavBarHeight, DockNavBarHeight, progress)
-        val infoWidth = lerp(
-            usableWidth,
-            usableWidth - (DockCompactHeight + gap) - (CompactSearchSize + gap),
-            progress,
-        )
-        val compactInfoOffset = (DockCompactHeight + gap) * progress
-        val infoCompactInset = UserInfoCompactInset * progress
 
+        // 进度只在 measure/place 阶段读取，弹簧每一帧只触发重新测量，不重组整条底栏。
         Layout(
             content = {
                 UserInfoBar(
@@ -215,13 +207,23 @@ fun MainBottomBars(
                     }
                 }
             },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(overlayHeight),
+            modifier = Modifier.fillMaxWidth(),
         ) { measurables, constraints ->
             val width = constraints.maxWidth
-            val height = constraints.maxHeight
-            val infoW = infoWidth.roundToPx()
+            val progress = compactProgress.value.coerceIn(0f, 1f)
+            // 展开: 44 + 8 + 64；下沉: 64（GlassBottomBar 宿主保持 64，内部缩到 44）
+            val height = lerp(
+                UserInfoBarHeight + gap + DockNavBarHeight,
+                DockNavBarHeight,
+                progress,
+            ).roundToPx()
+            val infoW = lerp(
+                usableWidth,
+                usableWidth - (DockCompactHeight + gap) - (CompactSearchSize + gap),
+                progress,
+            ).roundToPx()
+            val compactInfoOffset = ((DockCompactHeight + gap) * progress).roundToPx()
+            val infoCompactInset = (UserInfoCompactInset * progress).roundToPx()
             val dockW = expandedDockWidth.roundToPx()
             val dockH = DockNavBarHeight.roundToPx()
             val searchHost = SearchHostSize.roundToPx()
@@ -232,8 +234,8 @@ fun MainBottomBars(
             val searchPlaceable = measurables[2].measure(Constraints.fixed(searchHost, dockH))
             layout(width, height) {
                 infoPlaceable.place(
-                    x = compactInfoOffset.roundToPx(),
-                    y = infoCompactInset.roundToPx(),
+                    x = compactInfoOffset,
+                    y = infoCompactInset,
                 )
                 dockPlaceable.place(0, height - dockH)
                 searchPlaceable.place(width - searchHost, height - dockH)
@@ -249,12 +251,28 @@ private fun GlassSearchButton(
     compactProgress: State<Float>,
     onClick: () -> Unit,
 ) {
-    val progress = compactProgress.value.coerceIn(0f, 1f)
+    // 尺寸与图标缩放都放在 layout/draw 阶段读取进度，避免弹簧期间每帧重组。
+    val sizeModifier = remember(compactProgress) {
+        Modifier.layout { measurable, constraints ->
+            val progress = compactProgress.value.coerceIn(0f, 1f)
+            val size = lerp(SearchHostSize, CompactSearchSize, progress).roundToPx()
+            val placeable = measurable.measure(Constraints.fixed(size, size))
+            layout(size, size) { placeable.placeRelative(0, 0) }
+        }
+    }
+    val iconScaleModifier = remember(compactProgress) {
+        Modifier.graphicsLayer {
+            val progress = compactProgress.value.coerceIn(0f, 1f)
+            val scale = 1f + (CompactBottomControlIconSize.value / 26f - 1f) * progress
+            scaleX = scale
+            scaleY = scale
+        }
+    }
     GlassIconButton(
         onClick = onClick,
         backdrop = backdrop,
         style = GlassSurfaceStyle.Navigation,
-        modifier = Modifier.size(lerp(SearchHostSize, CompactSearchSize, progress)),
+        modifier = sizeModifier,
         morphProgress = compactProgress,
         morphCaptureWidth = SearchHostSize,
     ) {
@@ -262,9 +280,9 @@ private fun GlassSearchButton(
             imageVector = Icons.Rounded.Search,
             contentDescription = null,
             tint = LocalGlassColors.current.content,
-            modifier = Modifier.size(
-                26.dp + (CompactBottomControlIconSize - 26.dp) * progress
-            ),
+            modifier = Modifier
+                .size(26.dp)
+                .then(iconScaleModifier),
         )
     }
 }
