@@ -4,12 +4,13 @@ import android.os.SystemClock
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.EaseOut
 import androidx.compose.animation.core.spring
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -31,19 +32,17 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalViewConfiguration
-import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
-import androidx.compose.ui.util.fastFirstOrNull
 import androidx.compose.ui.util.fastForEachIndexed
 import com.huanchengfly.tieba.post.ui.common.theme.compose.ExtendedColors
 import com.huanchengfly.tieba.post.ui.common.theme.compose.ExtendedTheme
@@ -220,6 +219,28 @@ fun FloatingDock(
         pulseJob = scope.launch(start = CoroutineStart.UNDISPATCHED) { runPulse(target, start) }
     })
 
+    // 拖动结束（对齐 MeiloX animateToValue）：指示器先落位，进入 2.5% 范围再回收放大，
+    // 与按下 bloom 共用同一套弹簧；点击选中指示器也走这里，得到一次完整按压脉冲。
+    fun settleDrag(target: Float) {
+        dragTarget = target
+        scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            dragPosition.animateTo(target, DockItemSpring)
+        }
+        scope.launch {
+            withFrameNanos { }
+            if (dragPosition.value != target) {
+                val threshold = lastIndex.coerceAtLeast(1) * DockReleaseFraction
+                while (abs(dragPosition.value - target) >= threshold) {
+                    withFrameNanos { }
+                }
+            }
+            launch { indicatorScaleX.animateTo(1f, DockScaleXSpring, 0f) }
+            launch { indicatorScaleY.animateTo(1f, DockScaleYSpring, 0f) }
+            highlightProgress.animateTo(0f, DockGlowSpring)
+            pressProgress.animateTo(0f, DockPressSpring)
+        }
+    }
+
     // 外部选中变化（返回键回首页 / 展开 / 路由恢复）→ 指示器 spring 落定；
     // 点击切换由脉冲自己接管位置，这里不能重复 animateTo，否则会打断脉冲。
     LaunchedEffect(currentPosition, lastIndex) {
@@ -325,7 +346,8 @@ fun FloatingDock(
                 .offset(y = -DockIndicatorLift),
         )
 
-        // 条目：名称常显；配色只由选中态决定
+        // 条目：名称常显；配色只由选中态决定。
+        // 与 MeiloX 一致，每个条目各自是无涟漪 clickable；选中条目由上层指示器热区接管。
         Layout(
             content = {
                 navigationItems.fastForEachIndexed { index, navigationItem ->
@@ -337,11 +359,27 @@ fun FloatingDock(
                         accent = MaterialTheme.colors.secondary,
                         baseColor = MaterialTheme.colors.onSurface,
                         pressProgress = if (index == currentPosition) press else 0f,
+                        modifier = Modifier.clickable(
+                            interactionSource = null,
+                            indication = null,
+                            enabled = !compacted,
+                            role = Role.Tab,
+                        ) {
+                            if (index != currentPositionLatest.value) {
+                                runPulseLatest.value(index.toFloat())
+                                onChangePositionLatest.value(index)
+                            } else {
+                                onReselectedLatest.value(index)
+                            }
+                            navigationItemsLatest.value[index].onClick?.invoke()
+                        },
                     )
                 }
             },
             modifier = Modifier
                 .fillMaxSize()
+                // 与 MeiloX 的 Row padding(4dp) 一致：上下 4dp 是死区，tab 热区=指示器高度
+                .padding(vertical = DockIndicatorVerticalMargin)
                 .graphicsLayer {
                     scaleX = panelScale
                     scaleY = panelScale
@@ -350,7 +388,7 @@ fun FloatingDock(
             val width = constraints.maxWidth
             val height = constraints.maxHeight
             val placeables = measurables.map {
-                it.measure(Constraints.fixedWidth(itemWidthPx.roundToInt()))
+                it.measure(Constraints.fixed(itemWidthPx.roundToInt(), height))
             }
             layout(width, height) {
                 // 下沉态所有条目叠成同一颗圆钮，槽位中心不动（展开时从中心弹出）
@@ -358,121 +396,94 @@ fun FloatingDock(
                 placeables.forEachIndexed { index, placeable ->
                     val expandedX = innerPaddingPx + index * stepPx
                     val x = expandedX + (compactX - expandedX) * compact
-                    placeable.place(
-                        x = x.roundToInt(),
-                        y = ((height - placeable.height) / 2f).roundToInt(),
-                    )
+                    placeable.place(x = x.roundToInt(), y = 0)
                 }
             }
         }
 
-        // 手势层（对齐 MeiloX）：
-        // - 按住选中条目：立刻放大 + 柔光；超过触摸 slop 后水平拖动，松手按落点落定并切换；
-        // - 按住其他条目：无按下反馈，拖动开始后才放大；未移动则抬手点击，
-        //   由点击脉冲「边放大边移动」，近距离到位即回收；
-        // - 下沉态：整颗圆钮即「展开」热区，先对齐指示器再展开。
+        // 手势热区（照搬 MeiloX/Glasmio）：只有当前选中指示器那一格能触发按压与拖动，
+        // 其他 tab 的按压/滑动完全交给各自的 clickable——从其他 tab 长按滑动不会呼出指示器。
+        // 下沉态整颗圆钮即「展开」热区，按下给面板反馈，抬手展开。
+        val gestureWidth = with(density) { itemWidthPx.toDp() }
         Box(
             modifier = Modifier
-                .fillMaxSize()
+                .then(
+                    if (compacted) {
+                        Modifier.fillMaxSize()
+                    } else {
+                        Modifier
+                            .offset {
+                                IntOffset(
+                                    x = (innerPaddingPx + dragPosition.value * stepPx).roundToInt(),
+                                    y = DockIndicatorVerticalMargin.roundToPx(),
+                                )
+                            }
+                            .width(gestureWidth)
+                            .height(indicatorHeight)
+                    }
+                )
                 .pointerInput(compacted, itemCount, itemWidthPx, stepPx, innerPaddingPx, viewConfiguration) {
-                    awaitEachGesture {
-                        val down = awaitFirstDown(requireUnconsumed = false)
-                        val last = (itemCount - 1).coerceAtLeast(0)
-
-                        if (compactedLatest.value) {
-                            var moved = false
-                            while (true) {
-                                val event = awaitPointerEvent()
-                                val change = event.changes.fastFirstOrNull { it.id == down.id }
-                                    ?: break
-                                if (change.positionChange().getDistance() > viewConfiguration.touchSlop) {
-                                    moved = true
-                                }
-                                if (change.changedToUpIgnoreConsumed()) {
-                                    if (!moved) {
-                                        scope.launch(start = CoroutineStart.UNDISPATCHED) {
-                                            dragPosition.snapTo(
-                                                currentPositionLatest.value.coerceIn(0, last).toFloat()
-                                            )
-                                        }
-                                        onExpandLatest.value()
-                                    }
-                                    break
-                                }
-                            }
-                            return@awaitEachGesture
-                        }
-
-                        // MeiloX：只有按住当前选中条目（指示器命中区）才在按下时开始放大；
-                        // 点按其他条目没有任何按压反馈，抬手切换时才由点击脉冲开始 bloom，
-                        // 这样近距离点击会「边放大边移动」，到位时放大未完成就立即回收。
-                        val downOnSelected = slotAt(
-                            down.position.x, innerPaddingPx, itemWidthPx, stepPx, itemCount
-                        ) == currentPositionLatest.value
-                        if (downOnSelected) {
+                    var targetIndex = 0f
+                    var travel = 0f
+                    fun release() {
+                        isDragging = false
+                        scope.launch { velocity.animateTo(0f, DockVelocitySpring) }
+                        scope.launch { panelOffsetRaw.animateTo(0f, DockVelocitySpring) }
+                    }
+                    inspectDragGestures(
+                        onDragStart = {
+                            pulseJob?.cancel()
+                            targetIndex = dragPosition.value
+                            travel = 0f
+                            velocityTracker.resetTracking()
                             scope.launch { pressProgress.animateTo(1f, DockPressSpring) }
-                            scope.launch {
-                                indicatorScaleX.animateTo(DockIndicatorPressScale, DockScaleXSpring)
-                            }
-                            scope.launch {
-                                indicatorScaleY.animateTo(DockIndicatorPressScale, DockScaleYSpring)
-                            }
-                            scope.launch { highlightProgress.animateTo(1f, DockGlowSpring) }
-                        }
-
-                        var moved = false
-                        var dragging = false
-                        var cancelled = false
-                        var totalDx = 0f
-                        var totalDy = 0f
-                        var upX = down.position.x
-
-                        while (true) {
-                            val event = awaitPointerEvent()
-                            val change = event.changes.fastFirstOrNull { it.id == down.id }
-                            if (change == null) {
-                                cancelled = true
-                                break
-                            }
-                            if (change.changedToUpIgnoreConsumed()) {
-                                upX = change.position.x
-                                break
-                            }
-                            val delta = change.positionChange().x
-                            if (!moved && !cancelled) {
-                                totalDx += delta
-                                totalDy += change.positionChange().y
-                                if (totalDx * totalDx + totalDy * totalDy >
-                                    viewConfiguration.touchSlop * viewConfiguration.touchSlop
-                                ) {
-                                    moved = true
-                                    // 只有水平意图才接管拖动；否则让位给内容滚动
-                                    dragging = abs(totalDx) > abs(totalDy)
-                                    cancelled = !dragging
-                                    if (dragging) {
-                                        isDragging = true
-                                        velocityTracker.resetTracking()
-                                        scope.launch { pressProgress.animateTo(1f, DockPressSpring) }
-                                        scope.launch {
-                                            indicatorScaleX.animateTo(DockIndicatorPressScale, DockScaleXSpring)
-                                        }
-                                        scope.launch {
-                                            indicatorScaleY.animateTo(DockIndicatorPressScale, DockScaleYSpring)
-                                        }
-                                        scope.launch {
-                                            highlightProgress.animateTo(1f, DockGlowSpring)
-                                        }
-                                    } else {
-                                        scope.launch { pressProgress.animateTo(0f, DockPressSpring) }
-                                        scope.launch { indicatorScaleX.animateTo(1f, DockScaleXSpring) }
-                                        scope.launch { indicatorScaleY.animateTo(1f, DockScaleYSpring) }
-                                        scope.launch { highlightProgress.animateTo(0f, DockGlowSpring) }
-                                    }
+                            if (!compactedLatest.value) {
+                                scope.launch {
+                                    indicatorScaleX.animateTo(DockIndicatorPressScale, DockScaleXSpring)
                                 }
+                                scope.launch {
+                                    indicatorScaleY.animateTo(DockIndicatorPressScale, DockScaleYSpring)
+                                }
+                                scope.launch { highlightProgress.animateTo(1f, DockGlowSpring) }
                             }
-                            if (dragging) {
-                                val next = (dragTarget + delta / stepPx.coerceAtLeast(1f))
+                        },
+                        onDragEnd = {
+                            if (compactedLatest.value) {
+                                scope.launch { pressProgress.animateTo(0f, DockPressSpring) }
+                                onExpandLatest.value()
+                            } else {
+                                val last = (itemCount - 1).coerceAtLeast(0)
+                                val index = targetIndex.roundToInt().coerceIn(0, last)
+                                release()
+                                if (index != currentPositionLatest.value) {
+                                    onChangePositionLatest.value(index)
+                                } else if (travel <= viewConfiguration.touchSlop) {
+                                    onReselectedLatest.value(index)
+                                }
+                                settleDrag(index.toFloat())
+                            }
+                        },
+                        onDragCancel = {
+                            if (compactedLatest.value) {
+                                scope.launch { pressProgress.animateTo(0f, DockPressSpring) }
+                            } else {
+                                release()
+                                val last = (itemCount - 1).coerceAtLeast(0)
+                                val index = currentPositionLatest.value.coerceIn(0, last)
+                                dragTarget = index.toFloat()
+                                settleDrag(index.toFloat())
+                            }
+                        },
+                    ) { _, dragAmount ->
+                        travel += dragAmount.getDistance()
+                        if (!compactedLatest.value) {
+                            val delta = dragAmount.x
+                            if (delta != 0f) {
+                                isDragging = true
+                                val last = (itemCount - 1).coerceAtLeast(0)
+                                val next = (targetIndex + delta / stepPx.coerceAtLeast(1f))
                                     .coerceIn(0f, last.toFloat())
+                                targetIndex = next
                                 dragTarget = next
                                 scope.launch(start = CoroutineStart.UNDISPATCHED) {
                                     dragPosition.animateTo(next, DockItemSpring)
@@ -489,65 +500,10 @@ fun FloatingDock(
                                 scope.launch(start = CoroutineStart.UNDISPATCHED) {
                                     panelOffsetRaw.snapTo(panelOffsetRaw.value + delta)
                                 }
-                                change.consume()
-                            }
-                        }
-
-                        // 抬手统一收按压状态。点击切换的路径不在这里复位放大：
-                        // 脉冲自己的 release() 要在「到位」之后才回收，这里的 animateTo(1f)
-                        // 会抢走同一个 Animatable，把脉冲的放大与回弹都提前掐断。
-                        val tapsToOther = !dragging && !moved && !cancelled &&
-                            slotAt(upX, innerPaddingPx, itemWidthPx, stepPx, itemCount) !=
-                            currentPositionLatest.value
-                        if (!tapsToOther) {
-                            scope.launch { pressProgress.animateTo(0f, DockPressSpring) }
-                            scope.launch { indicatorScaleX.animateTo(1f, DockScaleXSpring) }
-                            scope.launch { indicatorScaleY.animateTo(1f, DockScaleYSpring) }
-                        }
-                        scope.launch { highlightProgress.animateTo(0f, DockGlowSpring) }
-
-                        if (!dragging) {
-                            if (!moved && !cancelled) {
-                                val index = slotAt(upX, innerPaddingPx, itemWidthPx, stepPx, itemCount)
-                                if (index == currentPositionLatest.value) {
-                                    onReselectedLatest.value(index)
-                                } else {
-                                    runPulseLatest.value(index.toFloat())
-                                    onChangePositionLatest.value(index)
-                                }
-                                navigationItemsLatest.value[index].onClick?.invoke()
-                            }
-                        } else {
-                            val target = dragTarget.roundToInt().coerceIn(0, last)
-                            isDragging = false
-                            dragTarget = target.toFloat()
-                            scope.launch {
-                                dragPosition.animateTo(target.toFloat(), DockItemSpring)
-                            }
-                            if (target != currentPositionLatest.value) {
-                                onChangePositionLatest.value(target)
-                            }
-                            scope.launch { velocity.animateTo(0f, DockVelocitySpring) }
-                            scope.launch {
-                                panelOffsetRaw.animateTo(0f, DockVelocitySpring)
                             }
                         }
                     }
-                }
-                .clearAndSetSemantics {},
+                },
         )
     }
-}
-
-/** 手指 x 坐标落在哪个条目（按条目中心归属）。 */
-private fun slotAt(
-    x: Float,
-    innerPaddingPx: Float,
-    itemWidthPx: Float,
-    stepPx: Float,
-    itemCount: Int,
-): Int {
-    if (itemCount <= 1) return 0
-    val raw = if (stepPx <= 0f) 0f else (x - innerPaddingPx - itemWidthPx / 2f) / stepPx
-    return raw.roundToInt().coerceIn(0, itemCount - 1)
 }

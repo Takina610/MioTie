@@ -3,8 +3,10 @@ package com.huanchengfly.tieba.post.ui.widgets.compose
 import androidx.compose.animation.graphics.ExperimentalAnimationGraphicsApi
 import androidx.compose.animation.graphics.res.rememberAnimatedVectorPainter
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -64,7 +66,9 @@ internal fun DockTab(
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
         modifier = modifier
+            .fillMaxHeight()
             // 下沉态四个条目叠在同一位置：靠 zIndex 保证当前页图标在最上层
             .zIndex(if (selected) 1f else 0f)
             .graphicsLayer { this.alpha = alpha },
