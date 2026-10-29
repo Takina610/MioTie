@@ -6,7 +6,6 @@ import com.huanchengfly.tieba.post.api.models.AgreeBean
 import com.huanchengfly.tieba.post.api.models.protos.FrsTabInfo
 import com.huanchengfly.tieba.post.api.models.protos.RecommendTopicList
 import com.huanchengfly.tieba.post.api.models.protos.ThreadInfo
-import com.huanchengfly.tieba.post.api.models.protos.hotThreadList.HotThreadListResponse
 import com.huanchengfly.tieba.post.arch.BaseViewModel
 import com.huanchengfly.tieba.post.arch.ImmutableHolder
 import com.huanchengfly.tieba.post.arch.PartialChange
@@ -19,9 +18,14 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.filterIsInstance
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flatMapConcat
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
@@ -50,28 +54,51 @@ class HotViewModel @Inject constructor() :
                     .flatMapConcat { it.producePartialChange() },
             )
 
-        private fun produceLoadPartialChange(): Flow<HotPartialChange.Load> =
-            TiebaApi.getInstance().hotThreadListFlow("all")
-                .map<HotThreadListResponse, HotPartialChange.Load> {
-                    HotPartialChange.Load.Success(
-                        it.data_?.topicList ?: emptyList(),
-                        it.data_?.hotThreadTabInfo ?: emptyList(),
-                        it.data_?.threadInfo ?: emptyList()
-                    )
-                }
-                .onStart { emit(HotPartialChange.Load.Start) }
-                .catch { emit(HotPartialChange.Load.Failure(it)) }
+        private fun produceLoadPartialChange(): Flow<HotPartialChange.Load> = flow {
+            emit(HotPartialChange.Load.Start)
+            val data = TiebaApi.getInstance().hotThreadListFlow("all").first().data_
+            emit(
+                HotPartialChange.Load.Success(
+                    data?.topicList ?: emptyList(),
+                    data?.hotThreadTabInfo ?: emptyList(),
+                    mergeHotThreads(data?.hotThreadTabInfo.orEmpty(), data?.threadInfo.orEmpty()),
+                )
+            )
+        }.catch { emit(HotPartialChange.Load.Failure(it)) }
 
-        private fun HotUiIntent.RefreshThreadList.producePartialChange(): Flow<HotPartialChange.RefreshThreadList> =
-            TiebaApi.getInstance().hotThreadListFlow(tabCode)
-                .map<HotThreadListResponse, HotPartialChange.RefreshThreadList> {
-                    HotPartialChange.RefreshThreadList.Success(
-                        tabCode,
-                        it.data_?.threadInfo ?: emptyList()
-                    )
-                }
-                .onStart { emit(HotPartialChange.RefreshThreadList.Start(tabCode)) }
-                .catch { emit(HotPartialChange.RefreshThreadList.Failure(tabCode, it)) }
+        private fun HotUiIntent.RefreshThreadList.producePartialChange(): Flow<HotPartialChange.RefreshThreadList> = flow {
+            emit(HotPartialChange.RefreshThreadList.Start(tabCode))
+            val threads = if (tabCode == "all") {
+                val data = TiebaApi.getInstance().hotThreadListFlow("all").first().data_
+                mergeHotThreads(data?.hotThreadTabInfo.orEmpty(), data?.threadInfo.orEmpty())
+            } else {
+                TiebaApi.getInstance().hotThreadListFlow(tabCode).first()
+                    .data_?.threadInfo.orEmpty()
+            }
+            emit(HotPartialChange.RefreshThreadList.Success(tabCode, threads))
+        }.catch { emit(HotPartialChange.RefreshThreadList.Failure(tabCode, it)) }
+
+        // 服务端「总榜」(all) 只下发少量置顶帖，各分类榜则有 10~20 条；
+        // 总榜把分类榜并入并按热度排序，滚动时才有连续内容。
+        private suspend fun mergeHotThreads(
+            tabs: List<FrsTabInfo>,
+            pinned: List<ThreadInfo>,
+        ): List<ThreadInfo> {
+            val tabCodes = tabs.map { it.tabCode }.filter { it.isNotBlank() }
+            val extra = coroutineScope {
+                tabCodes.map { code ->
+                    async {
+                        runCatching {
+                            TiebaApi.getInstance().hotThreadListFlow(code).first()
+                                .data_?.threadInfo.orEmpty()
+                        }.getOrDefault(emptyList())
+                    }
+                }.awaitAll().flatten()
+            }
+            return (pinned + extra)
+                .distinctBy { it.threadId }
+                .sortedByDescending { it.hotNum }
+        }
 
         private fun HotUiIntent.Agree.producePartialChange(): Flow<HotPartialChange.Agree> =
             TiebaApi.getInstance()
