@@ -71,13 +71,13 @@ import com.huanchengfly.tieba.post.App
 import com.materialkolor.PaletteStyle
 import com.materialkolor.dynamicColorScheme
 import com.huanchengfly.tieba.post.R
-import com.huanchengfly.tieba.post.activities.AppFontSizeActivity
-import com.huanchengfly.tieba.post.collectPreferenceAsState
 import com.huanchengfly.tieba.post.dataStore
-import com.huanchengfly.tieba.post.goToActivity
+import com.huanchengfly.tieba.post.collectPreferenceAsState
 import com.huanchengfly.tieba.post.rememberPreferenceAsMutableState
 import com.huanchengfly.tieba.post.rememberPreferenceAsState
 import com.huanchengfly.tieba.post.ui.common.theme.compose.ExtendedTheme
+import com.huanchengfly.tieba.post.ui.glass.IosGroupedList
+import com.huanchengfly.tieba.post.ui.page.destinations.FontSizePageDestination
 import com.huanchengfly.tieba.post.ui.page.settings.IosSettingsScaffold
 import com.huanchengfly.tieba.post.ui.page.settings.SettingsGroup
 import com.huanchengfly.tieba.post.ui.page.settings.components.SectionLabel
@@ -85,6 +85,7 @@ import com.huanchengfly.tieba.post.ui.page.settings.components.SettingRow
 import com.huanchengfly.tieba.post.ui.page.settings.components.SwitchSettingRow
 import com.huanchengfly.tieba.post.ui.page.settings.custom.components.ColorDotGrid
 import com.huanchengfly.tieba.post.ui.page.settings.custom.components.HctColorPickerDialog
+import com.huanchengfly.tieba.post.ui.page.settings.fontsize.rememberFontScaleLabel
 import com.huanchengfly.tieba.post.ui.widgets.compose.BackNavigationIcon
 import com.huanchengfly.tieba.post.ui.widgets.compose.rememberDialogState
 import com.huanchengfly.tieba.post.utils.appPreferences
@@ -418,13 +419,14 @@ fun CustomSettingsPage(
             }
         }
 
-        // ── 字体
+        // ── 字体（单行卡片，不再用同名分组标题重复一次）
         item {
-            SettingsGroup(stringResource(id = R.string.title_custom_font_size)) {
+            IosGroupedList {
                 SettingRow(
                     systemName = "textformat.size",
                     title = stringResource(id = R.string.title_custom_font_size),
-                    onClick = { context.goToActivity<AppFontSizeActivity>() }
+                    summary = rememberFontScaleLabel(context.appPreferences.fontScale),
+                    onClick = { navigator.navigate(FontSizePageDestination) }
                 )
             }
         }

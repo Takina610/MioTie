@@ -17,10 +17,10 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import com.huanchengfly.tieba.post.R
 import com.huanchengfly.tieba.post.rememberPreferenceAsMutableState
 import com.huanchengfly.tieba.post.models.database.Account
-import com.huanchengfly.tieba.post.ui.glass.GlassToggle
 import com.huanchengfly.tieba.post.ui.glass.IosListRow
 import com.huanchengfly.tieba.post.ui.glass.LocalGlassColors
 import com.huanchengfly.tieba.post.ui.page.LocalNavigator
+import com.huanchengfly.tieba.post.ui.page.settings.components.SwitchSettingRow
 import com.huanchengfly.tieba.post.ui.page.destinations.AccountManagePageDestination
 import com.huanchengfly.tieba.post.ui.page.destinations.BlockSettingsPageDestination
 import com.huanchengfly.tieba.post.ui.page.destinations.CustomSettingsPageDestination
@@ -82,17 +82,20 @@ private fun SettingsPersonalRows() {
     val navigator = LocalNavigator.current
     IosListRow(
         title = stringResource(id = R.string.title_settings_custom),
+        subtitle = stringResource(id = R.string.summary_settings_custom),
         systemName = "paintbrush",
         onClick = { navigator.navigate(CustomSettingsPageDestination) },
         showTopSeparator = false,
     )
     IosListRow(
         title = stringResource(id = R.string.title_settings_read_habit),
+        subtitle = stringResource(id = R.string.summary_settings_habit),
         systemName = "slider.vertical.3",
         onClick = { navigator.navigate(HabitSettingsPageDestination) },
     )
     IosListRow(
         title = stringResource(id = R.string.title_meme_emoticon),
+        subtitle = stringResource(id = R.string.summary_meme_emoticon),
         systemName = "photo.stack",
         onClick = { navigator.navigate(MemeEmoticonPageDestination) },
     )
@@ -109,48 +112,29 @@ private fun SettingsContentRows() {
     )
     IosListRow(
         title = stringResource(id = R.string.title_block_settings),
+        subtitle = stringResource(id = R.string.summary_block_settings),
         systemName = "shield",
         onClick = { navigator.navigate(BlockSettingsPageDestination) },
         showTopSeparator = false,
     )
-    SettingsToggleRow(
-        title = stringResource(id = R.string.title_use_webview),
+    // 「Custom Tabs」的可用性由同一份状态派生，所以这一行必须用外部持有的状态版本
+    SwitchSettingRow(
         systemName = "globe",
+        title = stringResource(id = R.string.title_use_webview),
         checked = useWebView,
         onCheckedChange = { useWebView = it },
+        summary = stringResource(
+            if (useWebView) R.string.tip_use_webview_on else R.string.tip_use_webview
+        ),
     )
-    SettingsToggleRow(
-        title = stringResource(id = R.string.title_use_custom_tabs),
+    SwitchSettingRow(
         systemName = "safari",
+        title = stringResource(id = R.string.title_use_custom_tabs),
+        summaryOn = stringResource(id = R.string.tip_use_custom_tab_on),
+        summaryOff = stringResource(id = R.string.tip_use_custom_tab),
         key = "use_custom_tabs",
         defaultValue = true,
         enabled = !useWebView,
-    )
-}
-
-/**
- * 行内开关（外部持有状态）。用于「一个开关的状态会影响同一页其他行」的场景：
- * 状态只在该页保留一份，避免同一 key 被多处读取而出现不一致。
- */
-@Composable
-private fun SettingsToggleRow(
-    title: String,
-    systemName: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-    enabled: Boolean = true,
-) {
-    IosListRow(
-        title = title,
-        systemName = systemName,
-        onClick = { if (enabled) onCheckedChange(!checked) },
-        trailing = {
-            GlassToggle(
-                checked = checked,
-                onCheckedChange = { if (enabled) onCheckedChange(it) },
-                enabled = enabled,
-            )
-        },
     )
 }
 
@@ -159,6 +143,7 @@ private fun SettingsFeatureRows() {
     val navigator = LocalNavigator.current
     IosListRow(
         title = stringResource(id = R.string.title_oksign),
+        subtitle = stringResource(id = R.string.summary_settings_oksign),
         systemName = "checkmark.circle",
         onClick = { navigator.navigate(OKSignSettingsPageDestination) },
         showTopSeparator = false,
@@ -193,6 +178,7 @@ private fun SettingsGeneralRows() {
     )
     IosListRow(
         title = stringResource(id = R.string.title_open_by_default),
+        subtitle = stringResource(id = R.string.tip_open_by_default),
         systemName = "circle.grid.2x2.fill",
         onClick = {
             context.startActivity(
@@ -206,52 +192,24 @@ private fun SettingsGeneralRows() {
             )
         },
     )
-    SettingsToggleRow(
-        title = stringResource(id = R.string.title_auto_check_update),
+    SwitchSettingRow(
         systemName = "arrow.clockwise",
+        title = stringResource(id = R.string.title_auto_check_update),
+        summaryOn = stringResource(id = R.string.tip_auto_check_update_on),
+        summaryOff = stringResource(id = R.string.tip_auto_check_update_off),
         key = "auto_check_update",
         defaultValue = true,
     )
     if (context.appPreferences.showExperimentalFeatures) {
-        SettingsToggleRow(
-            title = stringResource(id = R.string.title_check_ci_update),
+        SwitchSettingRow(
             systemName = "hammer",
+            title = stringResource(id = R.string.title_check_ci_update),
+            summary = stringResource(id = R.string.tip_check_ci_update),
             key = "checkCIUpdate",
             defaultValue = false,
         )
     }
 }
-
-/**
- * 行内开关：整行可点（对齐 MeiloX 设置页里 `GlassToggle` 与行点击同源的交互），
- * 开关本身也支持拖动。
- */
-@Composable
-private fun SettingsToggleRow(
-    title: String,
-    systemName: String,
-    key: String,
-    defaultValue: Boolean,
-    enabled: Boolean = true,
-) {
-    var checked by rememberPreferenceAsMutableState(
-        key = booleanPreferencesKey(key),
-        defaultValue = defaultValue,
-    )
-    IosListRow(
-        title = title,
-        systemName = systemName,
-        onClick = { if (enabled) checked = !checked },
-        trailing = {
-            GlassToggle(
-                checked = checked,
-                onCheckedChange = { if (enabled) checked = it },
-                enabled = enabled,
-            )
-        },
-    )
-}
-
 @Composable
 private fun AccountRow(account: Account?) {
     val navigator = LocalNavigator.current
