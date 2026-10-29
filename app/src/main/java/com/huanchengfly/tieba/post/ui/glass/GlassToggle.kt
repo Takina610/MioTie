@@ -107,6 +107,8 @@ fun GlassToggle(
                 fraction = if (ltr) (fraction + delta).fastCoerceIn(0f, 1f)
                 else (fraction - delta).fastCoerceIn(0f, 1f)
             },
+            // 开关自己认领手势，外层「整行可点」的行才不会再响应同一次点击
+            consumeGestures = true,
         )
     }
     LaunchedEffect(animation) {

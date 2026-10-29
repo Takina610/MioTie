@@ -28,6 +28,7 @@ class DampedDragAnimation(
     val onDragStarted: DampedDragAnimation.(position: Offset) -> Unit,
     val onDragStopped: DampedDragAnimation.() -> Unit,
     val onDrag: DampedDragAnimation.(size: IntSize, dragAmount: Offset) -> Unit,
+    consumeGestures: Boolean = false,
 ) {
 
     private val valueAnimationSpec =
@@ -67,6 +68,7 @@ class DampedDragAnimation(
 
     val modifier: Modifier = Modifier.pointerInput(Unit) {
         inspectDragGestures(
+            consumeGestures = consumeGestures,
             onDragStart = { down ->
                 onDragStarted(down.position)
                 press()
