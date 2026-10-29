@@ -9,6 +9,7 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.platform.LocalContext
 import androidx.datastore.core.DataMigration
 import androidx.datastore.core.DataStore
@@ -16,9 +17,12 @@ import androidx.datastore.preferences.SharedPreferencesMigration
 import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.preference.PreferenceDataStore
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -53,55 +57,6 @@ private val dataStoreInstance by lazy(mode = LazyThreadSafetyMode.SYNCHRONIZED) 
 }
 
 val Context.dataStore: DataStore<Preferences> by dataStoreInstance
-
-@Composable
-fun <T> rememberPreferenceAsMutableState(
-    key: Preferences.Key<T>,
-    defaultValue: T
-): MutableState<T> {
-    val dataStore = LocalContext.current.dataStore
-    val state = remember { mutableStateOf(defaultValue) }
-
-    LaunchedEffect(Unit) {
-        dataStore.data.map { it[key] ?: defaultValue }.distinctUntilChanged()
-            .collect { state.value = it }
-    }
-
-    LaunchedEffect(state.value) {
-        dataStore.edit { it[key] = state.value }
-    }
-
-    return state
-}
-
-@Composable
-fun <T> rememberPreferenceAsState(
-    key: Preferences.Key<T>,
-    defaultValue: T
-): State<T> {
-    val dataStore = LocalContext.current.dataStore
-    val state = remember { mutableStateOf(defaultValue) }
-
-    LaunchedEffect(Unit) {
-        dataStore.data.map { it[key] ?: defaultValue }.distinctUntilChanged()
-            .collect { state.value = it }
-    }
-
-    LaunchedEffect(state.value) {
-        dataStore.edit { it[key] = state.value }
-    }
-
-    return state
-}
-
-@SuppressLint("FlowOperatorInvokedInComposition")
-@Composable
-fun <T> DataStore<Preferences>.collectPreferenceAsState(
-    key: Preferences.Key<T>,
-    defaultValue: T
-): State<T> {
-    return data.map { it[key] ?: defaultValue }.collectAsState(initial = defaultValue)
-}
 
 fun DataStore<Preferences>.putString(key: String, value: String? = null) {
     MainScope().launch(Dispatchers.IO) {

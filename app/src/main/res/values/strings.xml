@@ -3,6 +3,8 @@
     <string name="title_notifications">消息</string>
     <string name="title_explore">动态</string>
     <string name="title_user">我</string>
+    <string name="title_user_content">内容</string>
+    <string name="title_user_more">更多</string>
     <string name="title_search">搜索</string>
     <string name="hint_search">发现更多</string>
     <string name="hint_search_in_ba">在 %1$s 吧内搜索</string>

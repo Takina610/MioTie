@@ -34,22 +34,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import com.huanchengfly.tieba.post.R
 import com.huanchengfly.tieba.post.api.retrofit.exception.getErrorMessage
 import com.huanchengfly.tieba.post.ui.common.theme.compose.ExtendedTheme
+import com.huanchengfly.tieba.post.ui.page.settings.IosTopBarScaffold
+import com.huanchengfly.tieba.post.ui.glass.LocalGlassColors
+import com.huanchengfly.tieba.post.ui.glass.SfIcon
 import com.huanchengfly.tieba.post.ui.page.webview.MyWebChromeClient
 import com.huanchengfly.tieba.post.ui.page.webview.MyWebViewClient
 import com.huanchengfly.tieba.post.ui.page.webview.isInternalHost
-import com.huanchengfly.tieba.post.ui.widgets.compose.BackNavigationIcon
 import com.huanchengfly.tieba.post.ui.widgets.compose.ClickMenu
 import com.huanchengfly.tieba.post.ui.widgets.compose.LazyLoad
 import com.huanchengfly.tieba.post.ui.widgets.compose.LoadingState
 import com.huanchengfly.tieba.post.ui.widgets.compose.LocalSnackbarHostState
-import com.huanchengfly.tieba.post.ui.widgets.compose.MyScaffold
-import com.huanchengfly.tieba.post.ui.widgets.compose.Toolbar
 import com.huanchengfly.tieba.post.ui.widgets.compose.WebView
 import com.huanchengfly.tieba.post.ui.widgets.compose.rememberMenuState
 import com.huanchengfly.tieba.post.ui.widgets.compose.rememberSaveableWebViewState
@@ -146,57 +145,43 @@ fun LoginPage(
 
     val animatedProgress by animateFloatAsState(targetValue = progress, label = "progress")
 
-    MyScaffold(
-        topBar = {
-            Toolbar(
-                title = {
-                    Column {
-                        Text(
-                            text = displayPageTitle,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        if (isExternalHost) {
-                            Text(
-                                text = currentHost,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                color = ExtendedTheme.colors.onTopBarSecondary,
-                                style = MaterialTheme.typography.caption
-                            )
+    IosTopBarScaffold(
+        title = displayPageTitle,
+        subtitle = currentHost.takeIf { isExternalHost },
+        // 与「我」页一致：标题放在顶栏居中，不使用下方大标题
+        showsLargeTitle = false,
+        // 网页内容自刷新，不能被玻璃顶栏逐帧采样（否则整页持续闪烁）
+        sampleContentBackdrop = false,
+        onNavigateBack = { navigator.navigateUp() },
+        actions = {
+            val menuState = rememberMenuState()
+            ClickMenu(
+                menuContent = {
+                    DropdownMenuItem(
+                        onClick = {
+                            webViewNavigator.reload()
+                            dismiss()
                         }
-                    }
-                },
-                navigationIcon = { BackNavigationIcon(onBackPressed = { navigator.navigateUp() }) },
-                actions = {
-                    val menuState = rememberMenuState()
-                    ClickMenu(
-                        menuContent = {
-                            DropdownMenuItem(
-                                onClick = {
-                                    webViewNavigator.reload()
-                                    dismiss()
-                                }
-                            ) {
-                                Text(text = stringResource(id = R.string.title_refresh))
-                            }
-                        },
-                        menuState = menuState,
-                        triggerShape = CircleShape
                     ) {
-                        Box(
-                            modifier = Modifier.size(48.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.MoreVert,
-                                contentDescription = stringResource(id = R.string.btn_more)
-                            )
-                        }
+                        Text(text = stringResource(id = R.string.title_refresh))
                     }
                 },
-            )
-        }
+                menuState = menuState,
+                triggerShape = CircleShape
+            ) {
+                Box(
+                    modifier = Modifier.size(44.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    SfIcon(
+                        "ellipsis",
+                        stringResource(id = R.string.btn_more),
+                        size = 20.dp,
+                        tint = LocalGlassColors.current.content,
+                    )
+                }
+            }
+        },
     ) { paddingValues ->
         Box {
             val snackbarHostState = LocalSnackbarHostState.current
@@ -230,92 +215,6 @@ fun LoginPage(
                     progress = animatedProgress,
                     modifier = Modifier.fillMaxWidth()
                 )
-            }
-        }
-    }
-}
-
-class LoginWebViewClient(
-    nativeNavigator: DestinationsNavigator? = null,
-    val coroutineScope: CoroutineScope,
-    val snackbarHostState: SnackbarHostState,
-) : MyWebViewClient(nativeNavigator) {
-    private var isLoadingAccount = false
-
-    override fun injectCookies(url: String) {}
-
-    override fun onPageFinished(view: WebView, url: String?) {
-        super.onPageFinished(view, url)
-        if (url == null) {
-            return
-        }
-        if (isLoadingAccount) {
-            return
-        }
-        val cookieStr = CookieManager.getInstance().getCookie(url) ?: return
-        val cookies = parseCookie(cookieStr).mapKeys { it.key.uppercase() }
-        val bduss = cookies["BDUSS"]
-        val sToken = cookies["STOKEN"]
-        val baiduId = cookies["BAIDUID"]
-        if (url.startsWith("https://tieba.baidu.com/index/tbwise/") || url.startsWith("https://tiebac.baidu.com/index/tbwise/")) {
-            if (bduss == null || sToken == null) {
-                return
-            }
-            if (!baiduId.isNullOrEmpty() && ClientUtils.baiduId.isNullOrEmpty()) {
-                coroutineScope.launch {
-                    ClientUtils.saveBaiduId(context, baiduId)
-                }
-            }
-            coroutineScope.launch {
-                snackbarHostState.showSnackbar(
-                    context.getString(R.string.text_please_wait),
-                    duration = SnackbarDuration.Indefinite
-                )
-            }
-            coroutineScope.launch {
-                AccountUtil.fetchAccountFlow(bduss, sToken, cookieStr)
-                    .catch {
-                        coroutineScope.launch {
-                            snackbarHostState.currentSnackbarData?.dismiss()
-                            snackbarHostState.showSnackbar(
-                                context.getString(
-                                    R.string.text_login_failed,
-                                    it.getErrorMessage()
-                                ), duration = SnackbarDuration.Short
-                            )
-                        }
-                        navigator.loadUrl(LOGIN_URL)
-                        isLoadingAccount = false
-                    }
-                    .flowOn(Dispatchers.Main)
-                    .collect { account ->
-                        isLoadingAccount = false
-                        AccountUtil.newAccount(account.uid, account) {
-                            if (it >= 0) {
-                                AccountUtil.switchAccount(context, it.toInt())
-                                coroutineScope.launch {
-                                    snackbarHostState.currentSnackbarData?.dismiss()
-                                    snackbarHostState.showSnackbar(
-                                        context.getString(R.string.text_login_success),
-                                        duration = SnackbarDuration.Short
-                                    )
-                                }
-                                coroutineScope.launch {
-                                    delay(1500L)
-                                    nativeNavigator?.navigateUp()
-                                }
-                            } else {
-                                coroutineScope.launch {
-                                    snackbarHostState.currentSnackbarData?.dismiss()
-                                    snackbarHostState.showSnackbar(
-                                        context.getString(R.string.text_database_failed_default),
-                                        duration = SnackbarDuration.Short
-                                    )
-                                }
-                                view.loadUrl(LOGIN_URL)
-                            }
-                        }
-                    }
             }
         }
     }

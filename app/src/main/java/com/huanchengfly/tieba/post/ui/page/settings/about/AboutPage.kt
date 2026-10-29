@@ -67,14 +67,12 @@ import com.huanchengfly.tieba.post.R
 import com.huanchengfly.tieba.post.arch.hiltViewModel
 import com.huanchengfly.tieba.post.ui.common.theme.compose.ExtendedTheme
 import com.huanchengfly.tieba.post.ui.page.destinations.LogPageDestination
+import com.huanchengfly.tieba.post.ui.page.settings.IosSettingsScaffold
 import com.huanchengfly.tieba.post.ui.page.settings.components.AppearanceCard
-import com.huanchengfly.tieba.post.ui.page.settings.components.CardDivider
-import com.huanchengfly.tieba.post.ui.page.settings.components.SectionLabel
+import com.huanchengfly.tieba.post.ui.page.settings.SettingsGroup
 import com.huanchengfly.tieba.post.ui.page.settings.components.SettingRow
 import com.huanchengfly.tieba.post.ui.widgets.compose.BackNavigationIcon
 import com.huanchengfly.tieba.post.ui.widgets.compose.ConfettiBurst
-import com.huanchengfly.tieba.post.ui.widgets.compose.MyScaffold
-import com.huanchengfly.tieba.post.ui.widgets.compose.TitleCentredToolbar
 import com.huanchengfly.tieba.post.utils.appPreferences
 import com.huanchengfly.tieba.post.utils.launchUrl
 import com.ramcosta.composedestinations.annotation.Destination
@@ -153,181 +151,114 @@ fun AboutPage(
         }
     }
 
-    MyScaffold(
-        backgroundColor = Color.Transparent,
-        topBar = {
-            TitleCentredToolbar(
-                title = {
-                    Text(
-                        text = stringResource(id = R.string.title_about),
-                        fontWeight = FontWeight.Bold,
-                        style = MaterialTheme.typography.h6
-                    )
-                },
-                navigationIcon = {
-                    BackNavigationIcon(onBackPressed = { navigator.navigateUp() })
-                }
-            )
-        }
-    ) { paddingValues ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues),
-            contentPadding = PaddingValues(vertical = 8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            // ── 头部：logo + 名称 + 版本（连点 7 次触发彩蛋庆祝：纸屑 + logo 弹跳旋转 + 气泡）
-            item {
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    ConfettiBurst(
-                        triggerKey = burstKey,
-                        modifier = Modifier.matchParentSize()
-                    )
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
+    IosSettingsScaffold(
+        title = stringResource(id = R.string.title_about),
+        onNavigateBack = { navigator.navigateUp() },
+    ) {
+        // ── 头部：logo + 名称 + 版本（连点 7 次触发彩蛋庆祝：纸屑 + logo 弹跳旋转 + 气泡）
+        item {
+            Box(modifier = Modifier.fillMaxWidth()) {
+                ConfettiBurst(
+                    triggerKey = burstKey,
+                    modifier = Modifier.matchParentSize()
+                )
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { onLogoTap() }
+                        )
+                        .padding(vertical = 32.dp)
+                ) {
+                    Image(
+                        painter = rememberDrawablePainter(
+                            drawable = context.getDrawable(R.mipmap.ic_launcher_new_round)
+                        ),
+                        contentDescription = null,
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                onClick = { onLogoTap() }
-                            )
-                            .padding(vertical = 32.dp)
+                            .size(96.dp)
+                            .graphicsLayer {
+                                scaleX = tapScale.value * celebrateScale.value
+                                scaleY = tapScale.value * celebrateScale.value
+                                rotationZ = wiggleRotation.value + celebrateRotation.value
+                            }
+                            .clip(CircleShape)
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "MioTie",
+                        style = MaterialTheme.typography.h4,
+                        fontWeight = FontWeight.Black
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = stringResource(
+                            id = R.string.summary_about_version,
+                            BuildConfig.VERSION_NAME
+                        ),
+                        fontSize = 15.sp,
+                        color = ExtendedTheme.colors.textSecondary
+                    )
+                }
+                // 彩蛋气泡：叠加层，不参与 Column 测量，出现/消失不挤动下方内容
+                // （气泡高度小于 Column 底部内边距，底对齐即落在版本号下方空隙）
+                AnimatedVisibility(
+                    visible = bubbleVisible,
+                    enter = fadeIn(tween(200)) + slideInVertically(tween(250)) { -it / 2 },
+                    exit = fadeOut(tween(200)) + slideOutVertically(tween(200)) { -it / 2 },
+                    modifier = Modifier.align(Alignment.BottomCenter)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .shadow(2.dp, RoundedCornerShape(100))
+                            .clip(RoundedCornerShape(100))
+                            .background(color = ExtendedTheme.colors.primary)
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
                     ) {
-                        Image(
-                            painter = rememberDrawablePainter(
-                                drawable = context.getDrawable(R.mipmap.ic_launcher_new_round)
-                            ),
-                            contentDescription = null,
-                            modifier = Modifier
-                                .size(96.dp)
-                                .graphicsLayer {
-                                    scaleX = tapScale.value * celebrateScale.value
-                                    scaleY = tapScale.value * celebrateScale.value
-                                    rotationZ = wiggleRotation.value + celebrateRotation.value
-                                }
-                                .clip(CircleShape)
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
                         Text(
-                            text = "MioTie",
-                            style = MaterialTheme.typography.h4,
-                            fontWeight = FontWeight.Black
+                            text = stringResource(id = bubbleResId),
+                            color = ExtendedTheme.colors.onAccent,
+                            fontSize = 13.sp
                         )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = stringResource(
-                                id = R.string.summary_about_version,
-                                BuildConfig.VERSION_NAME
-                            ),
-                            fontSize = 15.sp,
-                            color = ExtendedTheme.colors.textSecondary
-                        )
-                    }
-                    // 彩蛋气泡：叠加层，不参与 Column 测量，出现/消失不挤动下方内容
-                    // （气泡高度小于 Column 底部内边距，底对齐即落在版本号下方空隙）
-                    AnimatedVisibility(
-                        visible = bubbleVisible,
-                        enter = fadeIn(tween(200)) + slideInVertically(tween(250)) { -it / 2 },
-                        exit = fadeOut(tween(200)) + slideOutVertically(tween(200)) { -it / 2 },
-                        modifier = Modifier.align(Alignment.BottomCenter)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .shadow(2.dp, RoundedCornerShape(100))
-                                .clip(RoundedCornerShape(100))
-                                .background(color = ExtendedTheme.colors.primary)
-                                .padding(horizontal = 16.dp, vertical = 8.dp)
-                        ) {
-                            Text(
-                                text = stringResource(id = bubbleResId),
-                                color = ExtendedTheme.colors.onAccent,
-                                fontSize = 13.sp
-                            )
-                        }
                     }
                 }
             }
+        }
 
-            // ── 信息
-            item {
-                SectionLabel(
-                    text = stringResource(id = R.string.title_about_info),
-                    icon = Icons.Rounded.Info
+        // ── 信息
+        item {
+            SettingsGroup(stringResource(id = R.string.title_about_info)) {
+                SettingRow(
+                    systemName = "arrow.clockwise",
+                    title = stringResource(id = R.string.title_check_update),
+                    onClick = { updateViewModel.check() }
+                )
+                    SettingRow(
+                    systemName = "book.pages",
+                    title = stringResource(id = R.string.title_open_source_license),
+                    onClick = { launchUrl(context, navigator, "$REPO_URL/blob/main/LICENSE") }
                 )
             }
-            item {
-                AppearanceCard {
-                    SettingRow(
-                        icon = Icons.Rounded.History,
-                        title = stringResource(id = R.string.title_check_update),
-                        trailing = {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
-                                contentDescription = null,
-                                tint = ExtendedTheme.colors.textSecondary,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        },
-                        onClick = { updateViewModel.check() }
-                    )
-                    CardDivider()
-                    SettingRow(
-                        icon = Icons.Rounded.Description,
-                        title = stringResource(id = R.string.title_open_source_license),
-                        trailing = {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
-                                contentDescription = null,
-                                tint = ExtendedTheme.colors.textSecondary,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        },
-                        onClick = { launchUrl(context, navigator, "$REPO_URL/blob/main/LICENSE") }
-                    )
-                }
-            }
+        }
 
-            // ── 开发
-            item {
-                SectionLabel(
-                    text = stringResource(id = R.string.title_about_develop),
-                    icon = Icons.Rounded.Code
+        // ── 开发
+        item {
+            SettingsGroup(stringResource(id = R.string.title_about_develop)) {
+                SettingRow(
+                    systemName = "chevron.left.forwardslash.chevron.right",
+                    title = stringResource(id = R.string.title_project_source),
+                    summary = "GitHub",
+                    onClick = { launchUrl(context, navigator, REPO_URL) }
                 )
-            }
-            item {
-                AppearanceCard {
                     SettingRow(
-                        icon = Icons.Rounded.Code,
-                        title = stringResource(id = R.string.title_project_source),
-                        summary = "GitHub",
-                        trailing = {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
-                                contentDescription = null,
-                                tint = ExtendedTheme.colors.textSecondary,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        },
-                        onClick = { launchUrl(context, navigator, REPO_URL) }
-                    )
-                    CardDivider()
-                    SettingRow(
-                        icon = Icons.Rounded.BugReport,
-                        title = stringResource(id = R.string.title_app_logs),
-                        trailing = {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
-                                contentDescription = null,
-                                tint = ExtendedTheme.colors.textSecondary,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        },
-                        onClick = { navigator.navigate(LogPageDestination) }
-                    )
-                }
+                    systemName = "ladybug",
+                    title = stringResource(id = R.string.title_app_logs),
+                    onClick = { navigator.navigate(LogPageDestination) }
+                )
             }
         }
     }

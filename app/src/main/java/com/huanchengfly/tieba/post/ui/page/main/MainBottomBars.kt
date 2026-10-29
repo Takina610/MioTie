@@ -409,7 +409,13 @@ private fun UserInfoContent(
                 contentDescription = null,
             )
         } else {
-            AvatarPlaceholder(size = UserInfoBarAvatarSize)
+            // 未登录头像与 iOS 侧一致，用 SF Symbol 代替 Material 人物图标
+            SfIcon(
+                systemName = "person.crop.circle.fill",
+                contentDescription = null,
+                size = UserInfoBarAvatarSize,
+                tint = ExtendedTheme.colors.textSecondary,
+            )
         }
         Spacer(Modifier.width(10.dp))
         Column(

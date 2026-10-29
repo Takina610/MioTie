@@ -1,14 +1,15 @@
 package com.huanchengfly.tieba.post.ui.glass
 
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 @Immutable
 data class GlassAppearance(
@@ -53,33 +54,37 @@ data class GlassDimensions(
 internal val GlassColors.segmentedControlBackground: Color
     get() = if (isDark) Color.White.copy(alpha = 0.12f) else Color(0x1F767680)
 
-/** iOS names for the shared application typography roles. */
+/**
+ * iOS 排版：字号/字重照抄 MeiloX 1.55.1 的 `appTypography`，
+ * 全部使用 SF Pro（MioTie 主题不提供 M3 Typography，不能依赖 MaterialTheme 缺省值）。
+ */
 object IosTypography {
     val fontFamily = AppFontFamily
+    private val base = TextStyle(fontFamily = fontFamily)
     val largeTitle: TextStyle
         @Composable
         @ReadOnlyComposable
-        get() = MaterialTheme.typography.headlineLarge
+        get() = base.copy(fontWeight = FontWeight.Bold, fontSize = 34.sp, lineHeight = 41.sp)
     val title2: TextStyle
         @Composable
         @ReadOnlyComposable
-        get() = MaterialTheme.typography.headlineSmall
+        get() = base.copy(fontWeight = FontWeight.Bold, fontSize = 22.sp, lineHeight = 28.sp)
     val headline: TextStyle
         @Composable
         @ReadOnlyComposable
-        get() = MaterialTheme.typography.titleMedium
+        get() = base.copy(fontWeight = FontWeight.SemiBold, fontSize = 17.sp, lineHeight = 22.sp)
     val body: TextStyle
         @Composable
         @ReadOnlyComposable
-        get() = MaterialTheme.typography.bodyLarge
+        get() = base.copy(fontWeight = FontWeight.Normal, fontSize = 17.sp, lineHeight = 22.sp)
     val subheadline: TextStyle
         @Composable
         @ReadOnlyComposable
-        get() = MaterialTheme.typography.bodyMedium
+        get() = base.copy(fontWeight = FontWeight.Normal, fontSize = 15.sp, lineHeight = 20.sp)
     val caption: TextStyle
         @Composable
         @ReadOnlyComposable
-        get() = MaterialTheme.typography.labelMedium
+        get() = base.copy(fontWeight = FontWeight.Medium, fontSize = 12.sp, lineHeight = 16.sp)
 }
 
 val LocalGlassColors = staticCompositionLocalOf {
@@ -103,6 +108,9 @@ val LocalGlassColors = staticCompositionLocalOf {
 val LocalGlassContentColor = staticCompositionLocalOf<Color?> { null }
 val LocalGroupedListIconColor = staticCompositionLocalOf<Color?> { null }
 val LocalGroupedListBackgroundAlpha = staticCompositionLocalOf { 1f }
+
+/** 卡片已被外层分组列表合并时，行自身不再画卡片底板与圆角。 */
+internal val LocalMergedGlassCards = staticCompositionLocalOf { false }
 
 /** Shared grouped-list opacity used by every iOS sheet, including the player queue. */
 const val SheetGroupedListBackgroundAlpha = 0.55f

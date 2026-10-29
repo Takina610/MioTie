@@ -43,12 +43,13 @@ import com.huanchengfly.tieba.post.arch.collectPartialAsState
 import com.huanchengfly.tieba.post.arch.pageViewModel
 import com.huanchengfly.tieba.post.models.database.MemeEmoticon
 import com.huanchengfly.tieba.post.ui.common.theme.compose.ExtendedTheme
-import com.huanchengfly.tieba.post.ui.widgets.compose.BackNavigationIcon
 import com.huanchengfly.tieba.post.ui.widgets.compose.ConfirmDialog
-import com.huanchengfly.tieba.post.ui.widgets.compose.MyScaffold
 import com.huanchengfly.tieba.post.ui.widgets.compose.PagerTabIndicator
 import com.huanchengfly.tieba.post.ui.widgets.compose.TabRow
-import com.huanchengfly.tieba.post.ui.widgets.compose.TitleCentredToolbar
+import com.huanchengfly.tieba.post.ui.page.settings.IosTopBarScaffold
+import com.huanchengfly.tieba.post.ui.glass.GlassIconButton
+import com.huanchengfly.tieba.post.ui.glass.LocalGlassColors
+import com.huanchengfly.tieba.post.ui.glass.SfIcon
 import com.huanchengfly.tieba.post.ui.widgets.compose.rememberDialogState
 import com.huanchengfly.tieba.post.ui.widgets.compose.states.StateScreen
 import com.ramcosta.composedestinations.annotation.Destination
@@ -105,46 +106,28 @@ fun MemeEmoticonPage(
         Text(text = stringResource(id = R.string.tip_delete_meme))
     }
 
-    MyScaffold(
-        backgroundColor = Color.Transparent,
-        topBar = {
-            TitleCentredToolbar(
-                title = {
-                    Text(
-                        text = stringResource(id = R.string.title_meme_emoticon),
-                        fontWeight = FontWeight.Bold,
-                        style = MaterialTheme.typography.h6
+    IosTopBarScaffold(
+        title = stringResource(id = R.string.title_meme_emoticon),
+        onNavigateBack = { navigator.navigateUp() },
+        actions = {
+            if (isLoggedIn) {
+                if (isSyncing) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp,
+                        color = LocalGlassColors.current.content
                     )
-                },
-                navigationIcon = {
-                    BackNavigationIcon(onBackPressed = { navigator.navigateUp() })
-                },
-                actions = {
-                    if (isLoggedIn) {
-                        if (isSyncing) {
-                            CircularProgressIndicator(
-                                modifier = Modifier
-                                    .padding(end = 16.dp)
-                                    .size(20.dp),
-                                strokeWidth = 2.dp,
-                                color = ExtendedTheme.colors.primary
-                            )
-                        } else {
-                            IconButton(onClick = { viewModel.send(MemeEmoticonUiIntent.Sync) }) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Refresh,
-                                    contentDescription = stringResource(id = R.string.desc_sync)
-                                )
-                            }
-                        }
+                } else {
+                    GlassIconButton(onClick = { viewModel.send(MemeEmoticonUiIntent.Sync) }) {
+                        SfIcon("arrow.clockwise", stringResource(id = R.string.desc_sync), size = 20.dp)
                     }
                 }
-            )
-        }
-    ) { paddingValues ->
+            }
+        },
+    ) { contentPadding ->
         Column(
             modifier = Modifier
-                .padding(paddingValues)
+                .padding(contentPadding)
                 .fillMaxSize()
         ) {
             if (!isLoggedIn) {

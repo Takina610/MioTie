@@ -59,13 +59,14 @@ import com.huanchengfly.tieba.post.ui.common.theme.compose.ExtendedTheme
 import com.huanchengfly.tieba.post.ui.common.theme.utils.ThemeUtils
 import com.huanchengfly.tieba.post.ui.page.destinations.ForumPageDestination
 import com.huanchengfly.tieba.post.ui.page.destinations.ThreadPageDestination
+import com.huanchengfly.tieba.post.ui.glass.SfIcon
+import com.huanchengfly.tieba.post.ui.glass.LocalGlassColors
+import com.huanchengfly.tieba.post.ui.page.settings.IosTopBarScaffold
 import com.huanchengfly.tieba.post.ui.widgets.compose.AccompanistWebChromeClient
 import com.huanchengfly.tieba.post.ui.widgets.compose.AccompanistWebViewClient
-import com.huanchengfly.tieba.post.ui.widgets.compose.BackNavigationIcon
 import com.huanchengfly.tieba.post.ui.widgets.compose.ClickMenu
 import com.huanchengfly.tieba.post.ui.widgets.compose.LazyLoad
 import com.huanchengfly.tieba.post.ui.widgets.compose.LoadingState
-import com.huanchengfly.tieba.post.ui.widgets.compose.MyScaffold
 import com.huanchengfly.tieba.post.ui.widgets.compose.Toolbar
 import com.huanchengfly.tieba.post.ui.widgets.compose.WebView
 import com.huanchengfly.tieba.post.ui.widgets.compose.rememberMenuState
@@ -163,80 +164,59 @@ fun WebViewPage(
 
     val animatedProgress by animateFloatAsState(targetValue = progress, label = "progress")
 
-    MyScaffold(
-        topBar = {
-            Toolbar(
-                title = {
-                    Column {
-                        Text(
-                            text = displayPageTitle,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        if (isExternalHost) {
-                            Text(
-                                text = currentHost,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                color = ExtendedTheme.colors.onTopBarSecondary,
-                                style = MaterialTheme.typography.caption
-                            )
+    IosTopBarScaffold(
+        title = displayPageTitle,
+        subtitle = currentHost.takeIf { isExternalHost },
+        onNavigateBack = { navigator.navigateUp() },
+        // 网页内容自刷新，不能被玻璃顶栏逐帧采样（否则整页持续闪烁）
+        sampleContentBackdrop = false,
+        actions = {
+            val menuState = rememberMenuState()
+            ClickMenu(
+                menuContent = {
+                    DropdownMenuItem(
+                        onClick = {
+                            val url = webViewState.webView?.url ?: initialUrl
+                            TiebaUtil.copyText(context, url)
+                            dismiss()
                         }
-                    }
-                },
-                navigationIcon = { BackNavigationIcon(onBackPressed = { navigator.navigateUp() }) },
-                actions = {
-                    val menuState = rememberMenuState()
-                    ClickMenu(
-                        menuContent = {
-                            DropdownMenuItem(
-                                onClick = {
-                                    val url = webViewState.webView?.url ?: initialUrl
-                                    TiebaUtil.copyText(context, url)
-                                    dismiss()
-                                }
-                            ) {
-                                Text(text = stringResource(id = R.string.title_copy_link))
-                            }
-                            DropdownMenuItem(
-                                onClick = {
-                                    val uri = (webViewState.webView?.url ?: initialUrl).toUri()
-                                    context.startActivity(
-                                        Intent(
-                                            Intent.ACTION_VIEW,
-                                            uri
-                                        )
-                                    )
-                                    dismiss()
-                                }
-                            ) {
-                                Text(text = stringResource(id = R.string.title_open_in_browser))
-                            }
-                            DropdownMenuItem(
-                                onClick = {
-                                    webViewNavigator.reload()
-                                    dismiss()
-                                }
-                            ) {
-                                Text(text = stringResource(id = R.string.title_refresh))
-                            }
-                        },
-                        menuState = menuState,
-                        triggerShape = CircleShape
                     ) {
-                        Box(
-                            modifier = Modifier.size(48.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.MoreVert,
-                                contentDescription = stringResource(id = R.string.btn_more)
-                            )
+                        Text(text = stringResource(id = R.string.title_copy_link))
+                    }
+                    DropdownMenuItem(
+                        onClick = {
+                            val uri = (webViewState.webView?.url ?: initialUrl).toUri()
+                            context.startActivity(Intent(Intent.ACTION_VIEW, uri))
+                            dismiss()
                         }
+                    ) {
+                        Text(text = stringResource(id = R.string.title_open_in_browser))
+                    }
+                    DropdownMenuItem(
+                        onClick = {
+                            webViewNavigator.reload()
+                            dismiss()
+                        }
+                    ) {
+                        Text(text = stringResource(id = R.string.title_refresh))
                     }
                 },
-            )
-        }
+                menuState = menuState,
+                triggerShape = CircleShape
+            ) {
+                Box(
+                    modifier = Modifier.size(44.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    SfIcon(
+                        "ellipsis",
+                        stringResource(id = R.string.btn_more),
+                        size = 20.dp,
+                        tint = LocalGlassColors.current.content,
+                    )
+                }
+            }
+        },
     ) { paddingValues ->
         Box {
             WebView(
@@ -265,349 +245,6 @@ fun WebViewPage(
                 )
             }
         }
-    }
-}
-
-fun isTiebaHost(host: String): Boolean {
-    return host == "wapp.baidu.com" ||
-            host.contains("tieba.baidu.com") ||
-            host == "tiebac.baidu.com"
-}
-
-fun isInternalHost(host: String): Boolean {
-    return isTiebaHost(host) ||
-            host.contains("wappass.baidu.com") ||
-            host.contains("ufosdk.baidu.com") ||
-            host.contains("m.help.baidu.com")
-}
-
-open class MyWebViewClient(
-    protected val nativeNavigator: DestinationsNavigator? = null,
-) : AccompanistWebViewClient() {
-    val context: Context
-        get() = state.webView?.context ?: App.INSTANCE
-
-    private fun interceptWebViewRequest(
-        webView: WebView,
-        request: WebResourceRequest,
-    ): Boolean {
-        val newUri = request.url
-        val scheme = newUri.scheme?.lowercase() ?: return false
-        val host = newUri.host?.lowercase() ?: return false
-        val path = newUri.path?.lowercase() ?: return false
-        val isHttp = scheme.startsWith("http")
-        val isTieba = host == "wapp.baidu.com" ||
-                host.contains("tieba.baidu.com") ||
-                host == "tiebac.baidu.com"
-        val isInternal = isTieba ||
-                host.contains("wappass.baidu.com") ||
-                host.contains("ufosdk.baidu.com") ||
-                host.contains("m.help.baidu.com")
-        return when {
-            isHttp && isTieba -> {
-                if (path == "/f" || path == "/mo/q/m") {
-                    val forumName =
-                        newUri.getQueryParameter("kw") ?: newUri.getQueryParameter("word")
-                    val threadId = newUri.getQueryParameter("kz")?.toLongOrNull()
-                    if (threadId != null) {
-                        nativeNavigator?.navigate(
-                            ThreadPageDestination(threadId)
-                        )
-                        true
-                    } else if (forumName != null) {
-                        nativeNavigator?.navigate(
-                            ForumPageDestination(forumName)
-                        )
-                        true
-                    } else false
-                } else if (path.startsWith("/p/")) {
-                    val threadId = path.substring(3).toLongOrNull()
-                    if (threadId != null) {
-                        nativeNavigator?.navigate(
-                            ThreadPageDestination(threadId)
-                        )
-                        true
-                    } else false
-                } else false
-            }
-
-            isHttp && !isInternal -> {
-                if (context.appPreferences.useWebView)
-                    false
-                else {
-                    if (context.appPreferences.useCustomTabs) {
-                        runCatching {
-                            CustomTabsIntent.Builder()
-                                .setShowTitle(true)
-                                .setDefaultColorSchemeParams(
-                                    CustomTabColorSchemeParams.Builder()
-                                        .setToolbarColor(
-                                            ThemeUtils.getColorByAttr(
-                                                context,
-                                                R.attr.colorToolbar
-                                            )
-                                        )
-                                        .setNavigationBarColor(
-                                            ThemeUtils.getColorByAttr(
-                                                context,
-                                                R.attr.colorNavBar
-                                            )
-                                        )
-                                        .setNavigationBarDividerColor(
-                                            ThemeUtils.getColorByAttr(
-                                                context,
-                                                R.attr.colorDivider
-                                            )
-                                        )
-                                        .build()
-                                )
-                                .build()
-                                .launchUrl(context, newUri)
-                        }.onFailure {
-                            context.startActivity(
-                                Intent(
-                                    Intent.ACTION_VIEW,
-                                    newUri
-                                ).setFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                            )
-                        }
-                    } else {
-                        context.startActivity(
-                            Intent(
-                                Intent.ACTION_VIEW,
-                                newUri
-                            ).setFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                        )
-                    }
-                    true
-                }
-            }
-
-            !isHttp -> {
-                val currentUri = webView.url?.toUri()
-                val currentHost = currentUri?.host
-                if (currentHost != null) {
-                    launchThirdPartyApp(newUri, currentHost)
-                }
-                true
-            }
-
-            else -> false
-        }
-    }
-
-    private fun launchThirdPartyApp(
-        intent: Intent,
-        host: String,
-    ) {
-        val resolves = context.packageManager.queryIntentActivities(intent, 0)
-        if (resolves.isEmpty()) return
-        val appName = if (resolves.size == 1) {
-            resolves[0].loadLabel(context.packageManager)
-        } else {
-            context.getString(R.string.name_multi_app)
-        }
-        val scheme = intent.scheme ?: ""
-        PermissionDialog(
-            context,
-            PermissionBean(
-                PermissionDialog.CustomPermission.PERMISSION_START_APP,
-                "${host}_${scheme}",
-                context.getString(R.string.title_start_app_permission, host, appName),
-                R.drawable.ic_round_exit_to_app
-            )
-        )
-            .setOnGrantedCallback { context.startActivity(intent) }
-            .show()
-    }
-
-    private fun launchThirdPartyApp(
-        uri: Uri,
-        host: String,
-    ) {
-        if (uri.scheme.equals("intent", ignoreCase = true)) {
-            launchThirdPartyApp(
-                Intent.parseUri(uri.toString(), Intent.URI_INTENT_SCHEME)
-                    .addCategory(Intent.CATEGORY_BROWSABLE), host
-            )
-        } else {
-            launchThirdPartyApp(
-                Intent(
-                    Intent.ACTION_VIEW,
-                    uri
-                ).setFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP), host
-            )
-        }
-    }
-
-    open fun injectCookies(url: String) {
-        val cookieStr = CookieManager.getInstance().getCookie(url) ?: ""
-        val cookies = AccountUtil.parseCookie(cookieStr)
-        val BDUSS = cookies["BDUSS"]
-        val currentAccountBDUSS = AccountUtil.getBduss()
-        if (currentAccountBDUSS != null && BDUSS != currentAccountBDUSS) {
-            CookieManager.getInstance()
-                .setCookie(url, AccountUtil.getBdussCookie(currentAccountBDUSS))
-        }
-    }
-
-    override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
-        super.onPageStarted(view, url, favicon)
-        injectCookies(url ?: "")
-    }
-
-    override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest?): Boolean {
-        if (request == null) return false
-        return interceptWebViewRequest(view, request)
-    }
-}
-
-class MyWebChromeClient(
-    context: Context,
-    coroutineScope: CoroutineScope,
-) : AccompanistWebChromeClient() {
-    private val contextWeakReference = WeakReference(context)
-
-    val context: Context
-        get() = state.webView?.context ?: contextWeakReference.get() ?: App.INSTANCE
-
-    private var uploadMessage: ValueCallback<Array<Uri>>? = null
-
-    val id: String = UUID.randomUUID().toString()
-
-    init {
-        coroutineScope.onGlobalEvent<GlobalEvent.ActivityResult>(
-            filter = { it.requesterId == id },
-        ) {
-            uploadMessage?.onReceiveValue(FileChooserParams.parseResult(it.resultCode, it.intent))
-            uploadMessage = null
-        }
-    }
-
-    private fun isEnabledLocationFunction(): Boolean {
-        val locationManager = context.getSystemService<LocationManager>()
-        return locationManager != null && LocationManagerCompat.isLocationEnabled(locationManager)
-    }
-
-    override fun onGeolocationPermissionsShowPrompt(
-        origin: String?,
-        callback: GeolocationPermissions.Callback?,
-    ) {
-        if (origin == null || callback == null) return
-        PermissionDialog(
-            context,
-            PermissionBean(
-                PermissionDialog.CustomPermission.PERMISSION_LOCATION,
-                origin,
-                context.getString(
-                    R.string.title_ask_permission,
-                    origin,
-                    context.getString(R.string.common_permission_location)
-                ),
-                R.drawable.ic_round_location_on
-            )
-        )
-            .setOnGrantedCallback { isForever: Boolean ->
-                PermissionUtils.askPermission(
-                    context,
-                    PermissionData(
-                        listOf(
-                            Manifest.permission.ACCESS_COARSE_LOCATION,
-                            Manifest.permission.ACCESS_FINE_LOCATION
-                        ),
-                        context.getString(R.string.usage_webview_location_permission)
-                    ),
-                    R.string.tip_no_permission,
-                    {
-                        if (isEnabledLocationFunction()) {
-                            callback.invoke(origin, true, isForever)
-                        } else {
-                            callback.invoke(origin, false, false)
-                        }
-                    }
-                ) {
-                    callback.invoke(origin, false, false)
-                }
-            }
-            .setOnDeniedCallback {
-                callback.invoke(
-                    origin,
-                    false,
-                    false
-                )
-            }
-            .show()
-    }
-
-    override fun onShowFileChooser(
-        webView: WebView?,
-        filePathCallback: ValueCallback<Array<Uri>>?,
-        fileChooserParams: FileChooserParams?,
-    ): Boolean {
-        if (webView == null || filePathCallback == null || fileChooserParams == null) return false
-        uploadMessage?.onReceiveValue(null)
-        uploadMessage = filePathCallback
-        launchActivityForResult(id, fileChooserParams.createIntent())
-        return true
-    }
-
-    override fun onJsAlert(
-        view: WebView?,
-        url: String?,
-        message: String?,
-        result: JsResult?,
-    ): Boolean {
-        DialogUtil.build(view?.context ?: context)
-            .setMessage(message)
-            .setPositiveButton(R.string.button_sure_default) { _, _ ->
-                result?.confirm()
-            }
-            .setCancelable(false)
-            .create()
-            .show()
-        return true
-    }
-
-    override fun onJsConfirm(
-        view: WebView,
-        url: String?,
-        message: String?,
-        result: JsResult,
-    ): Boolean {
-        val context = view.context ?: context
-        if ("ClipboardGuardCopyRequest".equals(message, ignoreCase = true)) {
-            val uri = Uri.parse(url)
-            if (uri != null && uri.host != null) {
-                PermissionDialog(
-                    context,
-                    PermissionBean(
-                        PermissionDialog.CustomPermission.PERMISSION_CLIPBOARD_COPY,
-                        uri.host,
-                        context.getString(
-                            R.string.title_ask_permission_clipboard_copy,
-                            uri.host
-                        ),
-                        R.drawable.ic_round_file_copy
-                    )
-                )
-                    .setOnGrantedCallback { result.confirm() }
-                    .setOnDeniedCallback { result.cancel() }
-                    .show()
-            }
-        } else {
-            DialogUtil.build(view.context)
-                .setTitle("Confirm")
-                .setMessage(message)
-                .setPositiveButton(android.R.string.ok) { _, _ ->
-                    result.confirm()
-                }
-                .setNegativeButton(android.R.string.cancel) { _, _ ->
-                    result.cancel()
-                }
-                .create()
-                .show()
-        }
-        return true
     }
 }
 

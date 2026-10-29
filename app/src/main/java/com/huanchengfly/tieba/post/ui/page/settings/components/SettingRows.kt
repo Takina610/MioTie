@@ -1,16 +1,13 @@
 package com.huanchengfly.tieba.post.ui.page.settings.components
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.Text
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -23,7 +20,7 @@ import com.huanchengfly.tieba.post.R
 import com.huanchengfly.tieba.post.collectPreferenceAsState
 import com.huanchengfly.tieba.post.dataStore
 import com.huanchengfly.tieba.post.putString
-import com.huanchengfly.tieba.post.ui.common.theme.compose.ExtendedTheme
+import com.huanchengfly.tieba.post.ui.glass.LocalGlassColors
 import com.huanchengfly.tieba.post.ui.widgets.compose.Dialog
 import com.huanchengfly.tieba.post.ui.widgets.compose.DialogNegativeButton
 import com.huanchengfly.tieba.post.ui.widgets.compose.PromptDialog
@@ -36,7 +33,7 @@ import kotlinx.coroutines.flow.map
 /**
  * 卡片式设置行组件补充：
  * 单选 [ListSettingRow]、文本输入 [TextInputSettingRow]、时间选择 [TimePickerSettingRow]、
- * 提示块 [TipCard]，与 [SettingRow]/[SwitchSettingRow] 同一视觉体系。
+ * 提示块 [TipCard]，与 [SettingRow]/[SwitchSettingRow] 同一 iOS 列表几何。
  */
 
 /**
@@ -45,8 +42,9 @@ import kotlinx.coroutines.flow.map
  */
 @Composable
 internal fun ListSettingRow(
-    icon: ImageVector,
     title: String,
+    icon: ImageVector? = null,
+    systemName: String? = null,
     entries: Map<String, String>,   // value -> 显示文本
     defaultValue: String,
     key: String? = null,
@@ -67,12 +65,12 @@ internal fun ListSettingRow(
         null
     }
 
-    SettingRow(
-        icon = icon,
+    IosSettingRow(
         title = title,
-        summary = summary ?: entries[current] ?: stringResource(id = R.string.summary_not_set),
+        subtitle = summary ?: entries[current] ?: stringResource(id = R.string.summary_not_set),
         enabled = enabled,
         onClick = { dialogState.show() },
+        leading = { SettingRowLeading(icon = icon, systemName = systemName) },
     )
 
     Dialog(
@@ -101,8 +99,9 @@ internal fun ListSettingRow(
 /** 文本输入行（替代旧 EditTextPref）：点击弹输入对话框，确认后写回；[emptySummary] 为值为空时的占位摘要 */
 @Composable
 internal fun TextInputSettingRow(
-    icon: ImageVector,
     title: String,
+    icon: ImageVector? = null,
+    systemName: String? = null,
     key: String,
     defaultValue: String = "",
     summary: String? = null,
@@ -118,12 +117,12 @@ internal fun TextInputSettingRow(
         defaultValue = defaultValue
     )
 
-    SettingRow(
-        icon = icon,
+    IosSettingRow(
         title = title,
-        summary = summary ?: current.ifBlank { emptySummary?.let { context.getString(it) } },
+        subtitle = summary ?: current.ifBlank { emptySummary?.let { context.getString(it) } },
         enabled = enabled,
         onClick = { dialogState.show() },
+        leading = { SettingRowLeading(icon = icon, systemName = systemName) },
     )
 
     PromptDialog(
@@ -140,8 +139,9 @@ internal fun TextInputSettingRow(
 /** 时间选择行（替代旧 TimePickerPerf）：点击弹时间选择对话框 */
 @Composable
 internal fun TimePickerSettingRow(
-    icon: ImageVector,
     title: String,
+    icon: ImageVector? = null,
+    systemName: String? = null,
     key: String,
     defaultValue: String = "09:00",
     summary: (String) -> String,
@@ -155,12 +155,12 @@ internal fun TimePickerSettingRow(
         defaultValue = defaultValue
     )
 
-    SettingRow(
-        icon = icon,
+    IosSettingRow(
         title = title,
-        summary = summary(current),
+        subtitle = summary(current),
         enabled = enabled,
         onClick = { dialogState.show() },
+        leading = { SettingRowLeading(icon = icon, systemName = systemName) },
     )
 
     TimePickerDialog(
@@ -173,18 +173,25 @@ internal fun TimePickerSettingRow(
     )
 }
 
-/** 卡片外提示块（chip 样式，替代各设置页的提示 Text） */
+/** 卡片外提示块：iOS 分组列表里直接作为 footer 使用。 */
 @Composable
 internal fun TipCard(text: AnnotatedString, modifier: Modifier = Modifier) {
+    GroupFooter(text = text, modifier = modifier)
+}
+
+/**
+ * 分组下方说明文字（对齐 iOS `List { Section { ... } footer: { Text(...) } }`）：
+ * 与行一样左缩进 16dp，不再用独立 chip 底色。
+ */
+@Composable
+internal fun GroupFooter(text: AnnotatedString, modifier: Modifier = Modifier) {
     Text(
         text = text,
-        fontSize = 12.sp,
-        color = ExtendedTheme.colors.onChip,
+        fontSize = 13.sp,
+        lineHeight = 18.sp,
+        color = LocalGlassColors.current.secondaryContent,
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 8.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(ExtendedTheme.colors.chip)
-            .padding(12.dp)
+            .padding(start = 32.dp, end = 32.dp, top = 6.dp),
     )
 }

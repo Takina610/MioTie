@@ -329,11 +329,13 @@ fun <T> GlassBottomBar(
             { (1f - compactState.value * 1.35f).coerceIn(0f, 1f) }
         }
         val pressProgressState = dragAnimation.pressProgressState
+        val usesRefraction = appearance.usesRefraction
         val selectedIconColorFilterState: State<ColorFilter> = remember(
             compactState,
             pressProgressState,
             colors.accent,
             colors.content,
+            usesRefraction,
         ) {
             derivedStateOf {
                 val compactTint = androidx.compose.ui.graphics.lerp(
@@ -341,11 +343,14 @@ fun <T> GlassBottomBar(
                     colors.content,
                     compactState.value,
                 )
+                // 折射开启时，按压要让图标淡向内容色，交给透镜去呈现强调色；
+                // 关闭折射后没有透镜，必须保留强调色，否则按下去图标只会变灰。
+                val pressedTint = if (usesRefraction) pressProgressState.value else 0f
                 ColorFilter.tint(
                     androidx.compose.ui.graphics.lerp(
                         compactTint,
                         colors.content,
-                        pressProgressState.value,
+                        pressedTint,
                     ),
                 )
             }
@@ -633,20 +638,23 @@ fun <T> GlassBottomBar(
                             hideSelectedItem = true,
                         )
                     }
-                    MorphingSelectedNavigationItem(
-                        item = selectedItem,
-                        compactProgress = compactState,
-                        fullWidthPx = fullWidthPx,
-                        compactWidthPx = compactWidthPx,
-                        itemCount = tabItems.size,
-                        selectedIndex = selectedIndex,
-                        isLtr = isLtr,
-                        horizontalInsetPx = paddingPx,
-                        selectedContentLateScale = selectedContentLateScaleProvider,
-                        labelAlpha = tabContentAlpha,
-                        selectedIconColorFilter = selectedIconColorFilterState,
-                        contentColor = colors.content,
-                    )
+                    // 折射关闭时格子自身已按胶囊位置着色，再叠一份会重影。
+                    if (appearance.usesRefraction) {
+                        MorphingSelectedNavigationItem(
+                            item = selectedItem,
+                            compactProgress = compactState,
+                            fullWidthPx = fullWidthPx,
+                            compactWidthPx = compactWidthPx,
+                            itemCount = tabItems.size,
+                            selectedIndex = selectedIndex,
+                            isLtr = isLtr,
+                            horizontalInsetPx = paddingPx,
+                            selectedContentLateScale = selectedContentLateScaleProvider,
+                            labelAlpha = tabContentAlpha,
+                            selectedIconColorFilter = selectedIconColorFilterState,
+                            contentColor = colors.content,
+                        )
+                    }
                 }
             }
         }
@@ -782,6 +790,7 @@ private fun <T> androidx.compose.foundation.layout.RowScope.FullTabContent(
 ) {
     val colors = LocalGlassColors.current
     val scale = LocalLiquidTabScale.current
+    val usesRefraction = LocalGlassAppearance.current.usesRefraction
     items.values.forEach { item ->
         val selected = item.key == selectedKey
         Column(
@@ -797,7 +806,14 @@ private fun <T> androidx.compose.foundation.layout.RowScope.FullTabContent(
                     onClick = { onSelected(item.key) },
                 )
                 .graphicsLayer {
-                    this.alpha = if (selected && hideSelectedItem) 0f else alpha()
+                    // 折射开启时，选中格交给胶囊内容单独绘制（避免与透镜采样重影）；
+                    // 折射关闭时没有透镜，全部格子都保留，由颜色区分高亮。
+                    val hiddenForCapsule = if (usesRefraction) {
+                        item.key == selectedKey
+                    } else {
+                        false
+                    }
+                    this.alpha = if (hiddenForCapsule && hideSelectedItem) 0f else alpha()
                     val contentScale = scale()
                     scaleX = contentScale
                     scaleY = contentScale
@@ -805,9 +821,19 @@ private fun <T> androidx.compose.foundation.layout.RowScope.FullTabContent(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
+            // 液态玻璃开着时，强调色由透镜把「胶囊所在格」染色来呈现；
+            // 关闭后由 emphasized 直接上色。两种模式都要跟随胶囊位置，而不是只看 selected，
+            // 否则拖动时离开的那一格不会恢复、进入的那一格也不会变色。
+            // 高亮跟随胶囊所在格：离开的那一格立刻恢复普通色，进入的那一格立刻上色。
+            // 折射开启时胶囊内容会另画一份选中格，这里只按 selectedKey 决定是否上色。
+            val highlighted = if (LocalGlassAppearance.current.usesRefraction) {
+                selected
+            } else {
+                item.key == activeKey
+            }
             NavigationTabContent(
                 item = item,
-                selected = selected,
+                selected = highlighted,
                 iconActive = item.key == activeKey,
                 selectedColorFilter = selectedColorFilter,
             )
@@ -825,7 +851,11 @@ private fun <T> NavigationTabContent(
     labelAlpha: (() -> Float)? = null,
 ) {
     val colors = LocalGlassColors.current
+    val usesRefraction = LocalGlassAppearance.current.usesRefraction
     val labelVisibility = labelAlpha?.invoke()?.coerceIn(0f, 1f) ?: 1f
+    // 关闭液态玻璃后没有透镜来呈现强调色：此时把「胶囊当前所在格」也按选中色渲染，
+    // 让拖动/长按的目标图标有颜色反馈，而不是只播动画。
+    val emphasized = selected || (!usesRefraction && iconActive)
     Box(modifier = Modifier.padding(top = 3.dp * labelVisibility)) {
         Box(
             modifier = if (selected && selectedColorFilter != null) {
@@ -836,7 +866,7 @@ private fun <T> NavigationTabContent(
         ) {
             item.icon(
                 iconActive,
-                if (selected) selectedIconTint ?: colors.accent else colors.content,
+                if (emphasized) selectedIconTint ?: colors.accent else colors.content,
                 ExpandedNavigationIconSize,
             )
         }

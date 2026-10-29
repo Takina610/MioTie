@@ -3,25 +3,7 @@ package com.huanchengfly.tieba.post.ui.page.settings
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material.Icon
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.Text
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.BugReport
-import androidx.compose.material.icons.outlined.EmojiEmotions
-import androidx.compose.material.icons.outlined.OfflineBolt
-import androidx.compose.material.icons.outlined.Update
-import androidx.compose.material.icons.rounded.AccountCircle
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -29,19 +11,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.res.vectorResource
-import androidx.compose.ui.unit.dp
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import com.huanchengfly.tieba.post.R
-import com.huanchengfly.tieba.post.collectPreferenceAsState
-import com.huanchengfly.tieba.post.dataStore
+import com.huanchengfly.tieba.post.rememberPreferenceAsMutableState
 import com.huanchengfly.tieba.post.models.database.Account
-import com.huanchengfly.tieba.post.ui.common.theme.compose.ExtendedTheme
+import com.huanchengfly.tieba.post.ui.glass.GlassToggle
+import com.huanchengfly.tieba.post.ui.glass.IosListRow
+import com.huanchengfly.tieba.post.ui.glass.LocalGlassColors
 import com.huanchengfly.tieba.post.ui.page.LocalNavigator
 import com.huanchengfly.tieba.post.ui.page.destinations.AccountManagePageDestination
 import com.huanchengfly.tieba.post.ui.page.destinations.BlockSettingsPageDestination
@@ -50,12 +28,6 @@ import com.huanchengfly.tieba.post.ui.page.destinations.HabitSettingsPageDestina
 import com.huanchengfly.tieba.post.ui.page.destinations.LoginPageDestination
 import com.huanchengfly.tieba.post.ui.page.destinations.MemeEmoticonPageDestination
 import com.huanchengfly.tieba.post.ui.page.destinations.OKSignSettingsPageDestination
-import com.huanchengfly.tieba.post.ui.page.main.LocalMainBottomInsets
-import com.huanchengfly.tieba.post.ui.page.settings.components.AppearanceCard
-import com.huanchengfly.tieba.post.ui.page.settings.components.CardDivider
-import com.huanchengfly.tieba.post.ui.page.settings.components.SectionLabel
-import com.huanchengfly.tieba.post.ui.page.settings.components.SettingRow
-import com.huanchengfly.tieba.post.ui.page.settings.components.SwitchSettingRow
 import com.huanchengfly.tieba.post.ui.widgets.compose.Avatar
 import com.huanchengfly.tieba.post.ui.widgets.compose.LocalSnackbarHostState
 import com.huanchengfly.tieba.post.ui.widgets.compose.Sizes
@@ -68,242 +40,250 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * 设置列表内容：设置页（独立页面）与主界面「设置」标签页共用同一份内容。
- * 底部按 [LocalMainBottomInsets] 预留呼吸位，保证最后一张卡片可滚出悬浮底栏。
+ * 设置列表内容（对齐 MeiloX 1.55.1 `SettingScreen` 的分组结构）：
+ * 账号 / 个性化 / 内容与浏览 / 功能 / 通用，每组一张 26dp 连续圆角卡片，
+ * 行高 52dp、强调色 SF Symbol 图标、行尾 chevron。
+ * 设置页（独立页面）与主界面「设置」标签页共用同一份内容。
  */
-@Composable
-fun SettingsContent(modifier: Modifier = Modifier) {
-    val navigator = LocalNavigator.current
-    val account = LocalAccount.current
-    val context = LocalContext.current
-    val snackbarHostState = LocalSnackbarHostState.current
-    val coroutineScope = rememberCoroutineScope()
-
-    // 「使用 Custom Tabs」仅在内置浏览器不接管全部链接时才有意义（只读依赖，不回写）
-    val useWebView by context.dataStore.collectPreferenceAsState(
-        key = booleanPreferencesKey("use_webview"),
-        defaultValue = true
-    )
-    // 图片缓存占用（进入页面时在后台统计，清除后归零）
-    var cacheSize by remember { mutableStateOf("0.0B") }
-    LaunchedEffect(Unit) {
-        cacheSize = withContext(Dispatchers.IO) { ImageCacheUtil.getCacheSize(context) }
+internal fun LazyListScope.settingsContent() {
+    item { SettingsAccountGroup() }
+    item {
+        SettingsGroup(stringResource(id = R.string.title_settings_group_personal)) {
+            SettingsPersonalRows()
+        }
     }
-
-    LazyColumn(
-        modifier = modifier,
-        contentPadding = PaddingValues(top = 8.dp, bottom = 8.dp + LocalMainBottomInsets.current)
-    ) {
-        // ── 账号
-        item {
-            SectionLabel(text = stringResource(id = R.string.title_settings_group_account))
+    item {
+        SettingsGroup(stringResource(id = R.string.title_settings_group_content)) {
+            SettingsContentRows()
         }
-        item {
-            AppearanceCard {
-                AccountRow(account = account)
-            }
+    }
+    item {
+        SettingsGroup(stringResource(id = R.string.title_settings_group_feature)) {
+            SettingsFeatureRows()
         }
-
-        // ── 个性化
-        item {
-            SectionLabel(text = stringResource(id = R.string.title_settings_group_personal))
-        }
-        item {
-            AppearanceCard {
-                SettingRow(
-                    icon = ImageVector.vectorResource(id = R.drawable.ic_brush_black_24dp),
-                    title = stringResource(id = R.string.title_settings_custom),
-                    summary = stringResource(id = R.string.summary_settings_custom),
-                    onClick = { navigator.navigate(CustomSettingsPageDestination) }
-                )
-                CardDivider()
-                SettingRow(
-                    icon = ImageVector.vectorResource(id = R.drawable.ic_dashboard_customize_black_24),
-                    title = stringResource(id = R.string.title_settings_read_habit),
-                    summary = stringResource(id = R.string.summary_settings_habit),
-                    onClick = { navigator.navigate(HabitSettingsPageDestination) }
-                )
-                CardDivider()
-                SettingRow(
-                    icon = Icons.Outlined.EmojiEmotions,
-                    title = stringResource(id = R.string.title_meme_emoticon),
-                    summary = stringResource(id = R.string.summary_meme_emoticon),
-                    onClick = { navigator.navigate(MemeEmoticonPageDestination) }
-                )
-            }
-        }
-
-        // ── 内容与浏览
-        item {
-            SectionLabel(text = stringResource(id = R.string.title_settings_group_content))
-        }
-        item {
-            AppearanceCard {
-                SettingRow(
-                    icon = ImageVector.vectorResource(id = R.drawable.ic_settings_block),
-                    title = stringResource(id = R.string.title_block_settings),
-                    summary = stringResource(id = R.string.summary_block_settings),
-                    onClick = { navigator.navigate(BlockSettingsPageDestination) }
-                )
-                CardDivider()
-                SwitchSettingRow(
-                    icon = ImageVector.vectorResource(id = R.drawable.ic_chrome),
-                    title = stringResource(id = R.string.title_use_webview),
-                    summaryOn = stringResource(id = R.string.tip_use_webview_on),
-                    summaryOff = stringResource(id = R.string.tip_use_webview),
-                    key = "use_webview",
-                    defaultValue = true,
-                )
-                CardDivider()
-                SwitchSettingRow(
-                    icon = ImageVector.vectorResource(id = R.drawable.ic_today),
-                    title = stringResource(id = R.string.title_use_custom_tabs),
-                    summaryOn = stringResource(id = R.string.tip_use_custom_tab_on),
-                    summaryOff = stringResource(id = R.string.tip_use_custom_tab),
-                    key = "use_custom_tabs",
-                    defaultValue = true,
-                    enabled = !useWebView,
-                )
-            }
-        }
-
-        // ── 功能
-        item {
-            SectionLabel(text = stringResource(id = R.string.title_settings_group_feature))
-        }
-        item {
-            AppearanceCard {
-                SettingRow(
-                    icon = ImageVector.vectorResource(id = R.drawable.ic_rocket_launch_black_24),
-                    title = stringResource(id = R.string.title_oksign),
-                    summary = stringResource(id = R.string.summary_settings_oksign),
-                    onClick = { navigator.navigate(OKSignSettingsPageDestination) }
-                )
-            }
-        }
-
-        // ── 通用
-        item {
-            SectionLabel(text = stringResource(id = R.string.title_settings_group_general))
-        }
-        item {
-            AppearanceCard {
-                SettingRow(
-                    icon = Icons.Outlined.OfflineBolt,
-                    title = stringResource(id = R.string.title_clear_picture_cache),
-                    summary = stringResource(id = R.string.tip_cache, cacheSize),
-                    onClick = {
-                        coroutineScope.launch {
-                            withContext(Dispatchers.IO) {
-                                ImageCacheUtil.clearImageAllCache(context)
-                            }
-                            cacheSize = "0.0B"
-                            snackbarHostState.showSnackbar(
-                                context.getString(R.string.toast_clear_picture_cache_success)
-                            )
-                        }
-                    }
-                )
-                CardDivider()
-                SettingRow(
-                    icon = ImageVector.vectorResource(id = R.drawable.ic_link),
-                    title = stringResource(id = R.string.title_open_by_default),
-                    summary = stringResource(id = R.string.tip_open_by_default),
-                    onClick = {
-                        context.startActivity(
-                            Intent(
-                                Settings.ACTION_APP_OPEN_BY_DEFAULT_SETTINGS,
-                                Uri.parse("package:${context.packageName}")
-                            ).addFlags(
-                                Intent.FLAG_ACTIVITY_NO_HISTORY or
-                                        Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS
-                            )
-                        )
-                    }
-                )
-                CardDivider()
-                SwitchSettingRow(
-                    icon = Icons.Outlined.Update,
-                    title = stringResource(id = R.string.title_auto_check_update),
-                    summaryOn = stringResource(id = R.string.tip_auto_check_update_on),
-                    summaryOff = stringResource(id = R.string.tip_auto_check_update_off),
-                    key = "auto_check_update",
-                    defaultValue = true,
-                )
-                if (context.appPreferences.showExperimentalFeatures) {
-                    CardDivider()
-                    SwitchSettingRow(
-                        icon = Icons.Outlined.BugReport,
-                        title = stringResource(id = R.string.title_check_ci_update),
-                        summary = stringResource(id = R.string.tip_check_ci_update),
-                        key = "checkCIUpdate",
-                        defaultValue = false,
-                    )
-                }
-            }
+    }
+    item {
+        SettingsGroup(stringResource(id = R.string.title_settings_group_general)) {
+            SettingsGeneralRows()
         }
     }
 }
 
 @Composable
+private fun SettingsAccountGroup() {
+    val account = LocalAccount.current
+    SettingsGroup(title = stringResource(id = R.string.title_settings_group_account)) {
+        AccountRow(account = account)
+    }
+}
+
+@Composable
+private fun SettingsPersonalRows() {
+    val navigator = LocalNavigator.current
+    IosListRow(
+        title = stringResource(id = R.string.title_settings_custom),
+        systemName = "paintbrush",
+        onClick = { navigator.navigate(CustomSettingsPageDestination) },
+        showTopSeparator = false,
+    )
+    IosListRow(
+        title = stringResource(id = R.string.title_settings_read_habit),
+        systemName = "slider.vertical.3",
+        onClick = { navigator.navigate(HabitSettingsPageDestination) },
+    )
+    IosListRow(
+        title = stringResource(id = R.string.title_meme_emoticon),
+        systemName = "photo.stack",
+        onClick = { navigator.navigate(MemeEmoticonPageDestination) },
+    )
+}
+
+@Composable
+private fun SettingsContentRows() {
+    val navigator = LocalNavigator.current
+    // 同一个 key 只保留一份状态源：「Custom Tabs」的可用性直接由这一份状态派生，
+    // 否则会多出一个只读订阅，开关切换后它仍是旧值，行状态就对不上了。
+    var useWebView by rememberPreferenceAsMutableState(
+        key = booleanPreferencesKey("use_webview"),
+        defaultValue = true,
+    )
+    IosListRow(
+        title = stringResource(id = R.string.title_block_settings),
+        systemName = "shield",
+        onClick = { navigator.navigate(BlockSettingsPageDestination) },
+        showTopSeparator = false,
+    )
+    SettingsToggleRow(
+        title = stringResource(id = R.string.title_use_webview),
+        systemName = "globe",
+        checked = useWebView,
+        onCheckedChange = { useWebView = it },
+    )
+    SettingsToggleRow(
+        title = stringResource(id = R.string.title_use_custom_tabs),
+        systemName = "safari",
+        key = "use_custom_tabs",
+        defaultValue = true,
+        enabled = !useWebView,
+    )
+}
+
+/**
+ * 行内开关（外部持有状态）。用于「一个开关的状态会影响同一页其他行」的场景：
+ * 状态只在该页保留一份，避免同一 key 被多处读取而出现不一致。
+ */
+@Composable
+private fun SettingsToggleRow(
+    title: String,
+    systemName: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    enabled: Boolean = true,
+) {
+    IosListRow(
+        title = title,
+        systemName = systemName,
+        onClick = { if (enabled) onCheckedChange(!checked) },
+        trailing = {
+            GlassToggle(
+                checked = checked,
+                onCheckedChange = { if (enabled) onCheckedChange(it) },
+                enabled = enabled,
+            )
+        },
+    )
+}
+
+@Composable
+private fun SettingsFeatureRows() {
+    val navigator = LocalNavigator.current
+    IosListRow(
+        title = stringResource(id = R.string.title_oksign),
+        systemName = "checkmark.circle",
+        onClick = { navigator.navigate(OKSignSettingsPageDestination) },
+        showTopSeparator = false,
+    )
+}
+
+@Composable
+private fun SettingsGeneralRows() {
+    val context = LocalContext.current
+    val snackbarHostState = LocalSnackbarHostState.current
+    val coroutineScope = rememberCoroutineScope()
+    var cacheSize by remember { mutableStateOf("0.0B") }
+    LaunchedEffect(Unit) {
+        cacheSize = withContext(Dispatchers.IO) { ImageCacheUtil.getCacheSize(context) }
+    }
+    IosListRow(
+        title = stringResource(id = R.string.title_clear_picture_cache),
+        systemName = "trash",
+        detail = cacheSize,
+        showTopSeparator = false,
+        onClick = {
+            coroutineScope.launch {
+                withContext(Dispatchers.IO) {
+                    ImageCacheUtil.clearImageAllCache(context)
+                }
+                cacheSize = "0.0B"
+                snackbarHostState.showSnackbar(
+                    context.getString(R.string.toast_clear_picture_cache_success)
+                )
+            }
+        },
+    )
+    IosListRow(
+        title = stringResource(id = R.string.title_open_by_default),
+        systemName = "circle.grid.2x2.fill",
+        onClick = {
+            context.startActivity(
+                Intent(
+                    Settings.ACTION_APP_OPEN_BY_DEFAULT_SETTINGS,
+                    Uri.parse("package:${context.packageName}")
+                ).addFlags(
+                    Intent.FLAG_ACTIVITY_NO_HISTORY or
+                            Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS
+                )
+            )
+        },
+    )
+    SettingsToggleRow(
+        title = stringResource(id = R.string.title_auto_check_update),
+        systemName = "arrow.clockwise",
+        key = "auto_check_update",
+        defaultValue = true,
+    )
+    if (context.appPreferences.showExperimentalFeatures) {
+        SettingsToggleRow(
+            title = stringResource(id = R.string.title_check_ci_update),
+            systemName = "hammer",
+            key = "checkCIUpdate",
+            defaultValue = false,
+        )
+    }
+}
+
+/**
+ * 行内开关：整行可点（对齐 MeiloX 设置页里 `GlassToggle` 与行点击同源的交互），
+ * 开关本身也支持拖动。
+ */
+@Composable
+private fun SettingsToggleRow(
+    title: String,
+    systemName: String,
+    key: String,
+    defaultValue: Boolean,
+    enabled: Boolean = true,
+) {
+    var checked by rememberPreferenceAsMutableState(
+        key = booleanPreferencesKey(key),
+        defaultValue = defaultValue,
+    )
+    IosListRow(
+        title = title,
+        systemName = systemName,
+        onClick = { if (enabled) checked = !checked },
+        trailing = {
+            GlassToggle(
+                checked = checked,
+                onCheckedChange = { if (enabled) checked = it },
+                enabled = enabled,
+            )
+        },
+    )
+}
+
+@Composable
 private fun AccountRow(account: Account?) {
     val navigator = LocalNavigator.current
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        modifier = Modifier
-            .fillMaxSize()
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = {
-                    if (account != null) {
-                        navigator.navigate(AccountManagePageDestination)
-                    } else {
-                        navigator.navigate(LoginPageDestination)
-                    }
-                }
-            )
-            .padding(horizontal = 16.dp, vertical = 12.dp)
-    ) {
+    val colors = LocalGlassColors.current
+    val onAccountClick = {
         if (account != null) {
-            Avatar(
-                data = StringUtil.getAvatarUrl(account.portrait),
-                size = Sizes.Small,
-                contentDescription = null
-            )
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = stringResource(id = R.string.title_account_manage),
-                    style = MaterialTheme.typography.subtitle1
-                )
-                Text(
-                    text = stringResource(
-                        id = R.string.summary_now_account,
-                        account.nameShow ?: account.name
-                    ),
-                    style = MaterialTheme.typography.body2,
-                    color = ExtendedTheme.colors.textSecondary
-                )
-            }
+            navigator.navigate(AccountManagePageDestination)
         } else {
-            Icon(
-                imageVector = Icons.Rounded.AccountCircle,
-                contentDescription = null,
-                tint = ExtendedTheme.colors.textSecondary,
-                modifier = Modifier.size(24.dp)
-            )
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = stringResource(id = R.string.title_account_manage),
-                    style = MaterialTheme.typography.subtitle1
-                )
-                Text(
-                    text = stringResource(id = R.string.summary_not_logged_in),
-                    style = MaterialTheme.typography.body2,
-                    color = ExtendedTheme.colors.textSecondary
-                )
-            }
+            navigator.navigate(LoginPageDestination)
         }
+    }
+    if (account != null) {
+        IosListRow(
+            title = account.nameShow ?: account.name,
+            subtitle = stringResource(id = R.string.title_account_manage),
+            showTopSeparator = false,
+            leading = {
+                Avatar(
+                    data = StringUtil.getAvatarUrl(account.portrait),
+                    size = Sizes.Small,
+                    contentDescription = null
+                )
+            },
+            onClick = onAccountClick,
+        )
+    } else {
+        IosListRow(
+            title = stringResource(id = R.string.button_login),
+            subtitle = stringResource(id = R.string.summary_not_logged_in),
+            systemName = "person.crop.circle",
+            showTopSeparator = false,
+            onClick = onAccountClick,
+        )
     }
 }

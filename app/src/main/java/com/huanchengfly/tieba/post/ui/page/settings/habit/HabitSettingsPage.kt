@@ -60,14 +60,13 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import com.huanchengfly.tieba.post.R
 import com.huanchengfly.tieba.post.rememberPreferenceAsMutableState
 import com.huanchengfly.tieba.post.ui.common.theme.compose.ExtendedTheme
+import com.huanchengfly.tieba.post.ui.page.settings.IosSettingsScaffold
 import com.huanchengfly.tieba.post.ui.page.settings.components.AppearanceCard
 import com.huanchengfly.tieba.post.ui.page.settings.components.CardDivider
 import com.huanchengfly.tieba.post.ui.page.settings.components.ListSettingRow
 import com.huanchengfly.tieba.post.ui.page.settings.components.SectionLabel
 import com.huanchengfly.tieba.post.ui.page.settings.components.SwitchSettingRow
 import com.huanchengfly.tieba.post.ui.widgets.compose.BackNavigationIcon
-import com.huanchengfly.tieba.post.ui.widgets.compose.MyScaffold
-import com.huanchengfly.tieba.post.ui.widgets.compose.TitleCentredToolbar
 import com.huanchengfly.tieba.post.utils.isPhotoPickerAvailable
 import com.ramcosta.composedestinations.annotation.Destination
 import com.ramcosta.composedestinations.navigation.DestinationsNavigator
@@ -79,214 +78,183 @@ import com.ramcosta.composedestinations.navigation.DestinationsNavigator
 fun HabitSettingsPage(
     navigator: DestinationsNavigator
 ) {
-    MyScaffold(
-        backgroundColor = Color.Transparent,
-        topBar = {
-            TitleCentredToolbar(
-                title = {
-                    Text(
-                        text = stringResource(id = R.string.title_settings_read_habit),
-                        fontWeight = FontWeight.Bold, style = MaterialTheme.typography.h6
-                    )
-                },
-                navigationIcon = {
-                    BackNavigationIcon(onBackPressed = { navigator.navigateUp() })
-                }
-            )
-        },
-    ) { paddingValues ->
-        val context = LocalContext.current
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues),
-            contentPadding = PaddingValues(vertical = 8.dp)
-        ) {
-            // ── 图片与媒体
-            item {
-                SectionLabel(
-                    text = stringResource(id = R.string.title_habit_group_image),
-                    icon = Icons.Outlined.PhotoSizeSelectActual
+    val context = LocalContext.current
+    IosSettingsScaffold(
+        title = stringResource(id = R.string.title_settings_read_habit),
+        onNavigateBack = { navigator.navigateUp() },
+    ) {
+        // ── 图片与媒体
+        item {
+            SectionLabel(stringResource(id = R.string.title_habit_group_image))
+        }
+        item {
+            AppearanceCard {
+                ListSettingRow(
+                    systemName = "photo",
+                    title = stringResource(id = R.string.title_settings_image_load_type),
+                    entries = mapOf(
+                        "0" to stringResource(id = R.string.title_image_load_type_smart_origin),
+                        "1" to stringResource(id = R.string.title_image_load_type_smart_load),
+                        "2" to stringResource(id = R.string.title_image_load_type_all_origin),
+                        "3" to stringResource(id = R.string.title_image_load_type_all_no)
+                    ),
+                    defaultValue = "0",
+                    key = "image_load_type",
+                )
+                CardDivider()
+                ListSettingRow(
+                    systemName = "square.on.square",
+                    title = stringResource(id = R.string.title_settings_image_watermark),
+                    entries = mapOf(
+                        "0" to stringResource(id = R.string.title_image_watermark_none),
+                        "1" to stringResource(id = R.string.title_image_watermark_user_name),
+                        "2" to stringResource(id = R.string.title_image_watermark_forum_name)
+                    ),
+                    defaultValue = "2",
+                    key = "pic_watermark_type",
+                )
+                CardDivider()
+                SwitchSettingRow(
+                    systemName = "moon.fill",
+                    title = stringResource(id = R.string.settings_image_darken_when_night_mode),
+                    key = "imageDarkenWhenNightMode",
+                    defaultValue = true,
+                )
+                CardDivider()
+                SwitchSettingRow(
+                    systemName = "chevron.up.chevron.down",
+                    title = stringResource(id = R.string.title_hide_media),
+                    key = "hideMedia",
+                    defaultValue = false,
+                )
+                CardDivider()
+                SwitchSettingRow(
+                    systemName = "magnifyingglass",
+                    title = stringResource(id = R.string.title_do_not_use_photo_picker),
+                    key = "doNotUsePhotoPicker",
+                    defaultValue = false,
+                    enabled = isPhotoPickerAvailable(),
+                    summaryProvider = { checked ->
+                        if (!isPhotoPickerAvailable()) {
+                            context.getString(R.string.summary_photo_picker_not_supported)
+                        } else if (checked) {
+                            context.getString(R.string.summary_do_not_use_photo_picker)
+                        } else {
+                            context.getString(R.string.summary_use_photo_picker)
+                        }
+                    },
                 )
             }
-            item {
-                AppearanceCard {
-                    ListSettingRow(
-                        icon = Icons.Outlined.PhotoSizeSelectActual,
-                        title = stringResource(id = R.string.title_settings_image_load_type),
-                        entries = mapOf(
-                            "0" to stringResource(id = R.string.title_image_load_type_smart_origin),
-                            "1" to stringResource(id = R.string.title_image_load_type_smart_load),
-                            "2" to stringResource(id = R.string.title_image_load_type_all_origin),
-                            "3" to stringResource(id = R.string.title_image_load_type_all_no)
-                        ),
-                        defaultValue = "0",
-                        key = "image_load_type",
-                    )
-                    CardDivider()
-                    ListSettingRow(
-                        icon = Icons.AutoMirrored.Outlined.BrandingWatermark,
-                        title = stringResource(id = R.string.title_settings_image_watermark),
-                        entries = mapOf(
-                            "0" to stringResource(id = R.string.title_image_watermark_none),
-                            "1" to stringResource(id = R.string.title_image_watermark_user_name),
-                            "2" to stringResource(id = R.string.title_image_watermark_forum_name)
-                        ),
-                        defaultValue = "2",
-                        key = "pic_watermark_type",
-                    )
-                    CardDivider()
-                    SwitchSettingRow(
-                        icon = Icons.Outlined.NightsStay,
-                        title = stringResource(id = R.string.settings_image_darken_when_night_mode),
-                        key = "imageDarkenWhenNightMode",
-                        defaultValue = true,
-                    )
-                    CardDivider()
-                    SwitchSettingRow(
-                        icon = ImageVector.vectorResource(R.drawable.ic_outline_collapse_all),
-                        title = stringResource(id = R.string.title_hide_media),
-                        key = "hideMedia",
-                        defaultValue = false,
-                    )
-                    CardDivider()
-                    SwitchSettingRow(
-                        icon = Icons.Outlined.ImageSearch,
-                        title = stringResource(id = R.string.title_do_not_use_photo_picker),
-                        key = "doNotUsePhotoPicker",
-                        defaultValue = false,
-                        enabled = isPhotoPickerAvailable(),
-                        summaryProvider = { checked ->
-                            if (!isPhotoPickerAvailable()) {
-                                context.getString(R.string.summary_photo_picker_not_supported)
-                            } else if (checked) {
-                                context.getString(R.string.summary_do_not_use_photo_picker)
-                            } else {
-                                context.getString(R.string.summary_use_photo_picker)
-                            }
-                        },
-                    )
-                }
-            }
+        }
 
-            // ── 浏览与导航
-            item {
-                SectionLabel(
-                    text = stringResource(id = R.string.title_habit_group_browse),
-                    icon = Icons.Outlined.Explore
+        // ── 浏览与导航
+        item {
+            SectionLabel(stringResource(id = R.string.title_habit_group_browse))
+        }
+        item {
+            AppearanceCard {
+                StartPageSelector()
+                CardDivider()
+                ListSettingRow(
+                    systemName = "calendar",
+                    title = stringResource(id = R.string.title_settings_default_sort_type),
+                    entries = mapOf(
+                        "0" to stringResource(id = R.string.title_sort_by_reply),
+                        "1" to stringResource(id = R.string.title_sort_by_send),
+                    ),
+                    defaultValue = "0",
+                    key = "default_sort_type",
+                )
+                CardDivider()
+                ListSettingRow(
+                    systemName = "arrowshape.turn.up.right",
+                    title = stringResource(id = R.string.settings_forum_fab_function),
+                    entries = mapOf(
+                        "post" to stringResource(id = R.string.btn_post),
+                        "refresh" to stringResource(id = R.string.btn_refresh),
+                        "back_to_top" to stringResource(id = R.string.btn_back_to_top),
+                        "hide" to stringResource(id = R.string.btn_hide)
+                    ),
+                    defaultValue = "post",
+                    key = "forumFabFunction",
+                )
+                CardDivider()
+                SwitchSettingRow(
+                    systemName = "arrow.uturn.backward.circle",
+                    title = stringResource(id = R.string.title_predictive_back),
+                    summaryProvider = { context.getString(R.string.summary_predictive_back) },
+                    key = "predictive_back",
+                    defaultValue = true,
+                )
+                CardDivider()
+                SwitchSettingRow(
+                    systemName = "clock",
+                    title = stringResource(id = R.string.settings_home_page_show_history_forum),
+                    key = "homePageShowHistoryForum",
+                    defaultValue = true,
                 )
             }
-            item {
-                AppearanceCard {
-                    StartPageSelector()
-                    CardDivider()
-                    ListSettingRow(
-                        icon = Icons.Outlined.CalendarViewDay,
-                        title = stringResource(id = R.string.title_settings_default_sort_type),
-                        entries = mapOf(
-                            "0" to stringResource(id = R.string.title_sort_by_reply),
-                            "1" to stringResource(id = R.string.title_sort_by_send),
-                        ),
-                        defaultValue = "0",
-                        key = "default_sort_type",
-                    )
-                    CardDivider()
-                    ListSettingRow(
-                        icon = Icons.AutoMirrored.Outlined.ExitToApp,
-                        title = stringResource(id = R.string.settings_forum_fab_function),
-                        entries = mapOf(
-                            "post" to stringResource(id = R.string.btn_post),
-                            "refresh" to stringResource(id = R.string.btn_refresh),
-                            "back_to_top" to stringResource(id = R.string.btn_back_to_top),
-                            "hide" to stringResource(id = R.string.btn_hide)
-                        ),
-                        defaultValue = "post",
-                        key = "forumFabFunction",
-                    )
-                    CardDivider()
-                    SwitchSettingRow(
-                        icon = Icons.AutoMirrored.Rounded.Reply,
-                        title = stringResource(id = R.string.title_predictive_back),
-                        summaryProvider = { context.getString(R.string.summary_predictive_back) },
-                        key = "predictive_back",
-                        defaultValue = true,
-                    )
-                    CardDivider()
-                    SwitchSettingRow(
-                        icon = Icons.Outlined.WatchLater,
-                        title = stringResource(id = R.string.settings_home_page_show_history_forum),
-                        key = "homePageShowHistoryForum",
-                        defaultValue = true,
-                    )
-                }
-            }
+        }
 
-            // ── 收藏
-            item {
-                SectionLabel(
-                    text = stringResource(id = R.string.title_habit_group_collect),
-                    icon = Icons.Outlined.StarOutline
+        // ── 收藏
+        item {
+            SectionLabel(stringResource(id = R.string.title_habit_group_collect))
+        }
+        item {
+            AppearanceCard {
+                SwitchSettingRow(
+                    systemName = "star",
+                    title = stringResource(id = R.string.settings_collect_thread_see_lz),
+                    summaryOn = stringResource(id = R.string.tip_collect_thread_see_lz_on),
+                    summaryOff = stringResource(id = R.string.tip_collect_thread_see_lz),
+                    key = "collect_thread_see_lz",
+                    defaultValue = true,
+                )
+                CardDivider()
+                SwitchSettingRow(
+                    systemName = "arrow.up.arrow.down",
+                    title = stringResource(id = R.string.settings_collect_thread_desc_sort),
+                    summaryOn = stringResource(id = R.string.tip_collect_thread_desc_sort_on),
+                    summaryOff = stringResource(id = R.string.tip_collect_thread_desc_sort),
+                    key = "collect_thread_desc_sort",
+                    defaultValue = false,
                 )
             }
-            item {
-                AppearanceCard {
-                    SwitchSettingRow(
-                        icon = Icons.Outlined.StarOutline,
-                        title = stringResource(id = R.string.settings_collect_thread_see_lz),
-                        summaryOn = stringResource(id = R.string.tip_collect_thread_see_lz_on),
-                        summaryOff = stringResource(id = R.string.tip_collect_thread_see_lz),
-                        key = "collect_thread_see_lz",
-                        defaultValue = true,
-                    )
-                    CardDivider()
-                    SwitchSettingRow(
-                        icon = Icons.AutoMirrored.Rounded.Sort,
-                        title = stringResource(id = R.string.settings_collect_thread_desc_sort),
-                        summaryOn = stringResource(id = R.string.tip_collect_thread_desc_sort_on),
-                        summaryOff = stringResource(id = R.string.tip_collect_thread_desc_sort),
-                        key = "collect_thread_desc_sort",
-                        defaultValue = false,
-                    )
-                }
-            }
+        }
 
-            // ── 隐私与互动
-            item {
-                SectionLabel(
-                    text = stringResource(id = R.string.title_habit_group_privacy),
-                    icon = Icons.Outlined.Verified
+        // ── 隐私与互动
+        item {
+            SectionLabel(stringResource(id = R.string.title_habit_group_privacy))
+        }
+        item {
+            AppearanceCard {
+                SwitchSettingRow(
+                    systemName = "eye",
+                    title = stringResource(id = R.string.settings_incognito_mode),
+                    key = "incognitoMode",
+                    defaultValue = false,
                 )
-            }
-            item {
-                AppearanceCard {
-                    SwitchSettingRow(
-                        icon = Icons.Outlined.AddModerator,
-                        title = stringResource(id = R.string.settings_incognito_mode),
-                        key = "incognitoMode",
-                        defaultValue = false,
-                    )
-                    CardDivider()
-                    SwitchSettingRow(
-                        icon = Icons.Outlined.SpeakerNotesOff,
-                        title = stringResource(id = R.string.title_hide_reply),
-                        key = "hideReply",
-                        defaultValue = false,
-                    )
-                    CardDivider()
-                    SwitchSettingRow(
-                        icon = Icons.Outlined.Verified,
-                        title = stringResource(id = R.string.title_show_both_username_and_nickname),
-                        key = "show_both_username_and_nickname",
-                        defaultValue = false,
-                    )
-                    CardDivider()
-                    SwitchSettingRow(
-                        icon = Icons.Outlined.SecurityUpdateWarning,
-                        title = stringResource(id = R.string.title_post_or_reply_warning),
-                        key = "postOrReplyWarning",
-                        defaultValue = true,
-                    )
-                }
+                CardDivider()
+                SwitchSettingRow(
+                    systemName = "bubble.left",
+                    title = stringResource(id = R.string.title_hide_reply),
+                    key = "hideReply",
+                    defaultValue = false,
+                )
+                CardDivider()
+                SwitchSettingRow(
+                    systemName = "checkmark.circle",
+                    title = stringResource(id = R.string.title_show_both_username_and_nickname),
+                    key = "show_both_username_and_nickname",
+                    defaultValue = false,
+                )
+                CardDivider()
+                SwitchSettingRow(
+                    systemName = "exclamationmark.triangle",
+                    title = stringResource(id = R.string.title_post_or_reply_warning),
+                    key = "postOrReplyWarning",
+                    defaultValue = true,
+                )
             }
         }
     }

@@ -70,6 +70,7 @@ enum class SfSymbol(
     Close("xmark", 0x100184),
     CloseCircle("xmark.circle", 0x100060),
     ChevronBack("chevron.left", 0x100189, autoMirrored = true),
+    ChevronForward("chevron.forward", 0x100BFB),
 }
 
 private object SfSymbolTypefaceCache {
@@ -117,6 +118,35 @@ fun SfIcon(
         fontSize = fontSize,
         weight = weight,
         mirrored = mirrored && symbol.autoMirrored && layoutDirection == LayoutDirection.Rtl,
+    )
+}
+
+/** 按 SF Symbols 名称渲染，用于设置列表等需要大量图标的场景（目录见 [SfSymbolCatalog]）。 */
+@Composable
+fun SfIcon(
+    systemName: String,
+    contentDescription: String?,
+    modifier: Modifier = Modifier,
+    tint: Color = LocalGroupedListIconColor.current
+        ?: LocalGlassContentColor.current
+        ?: LocalGlassColors.current.content,
+    size: Dp = 24.dp,
+    fontSize: TextUnit = size.value.sp,
+    weight: FontWeight = FontWeight.Normal,
+    mirrored: Boolean = false,
+) {
+    val layoutDirection = LocalLayoutDirection.current
+    // 名称写错会直接抛异常；debug 下先给出更明确的提示
+    SfIconGlyph(
+        codePoint = SfSymbolCatalog.codePointOrNull(systemName)
+            ?: error("Unresolved SF Symbol: $systemName"),
+        contentDescription = contentDescription,
+        modifier = modifier,
+        tint = tint,
+        size = size,
+        fontSize = fontSize,
+        weight = weight,
+        mirrored = mirrored && layoutDirection == LayoutDirection.Rtl,
     )
 }
 

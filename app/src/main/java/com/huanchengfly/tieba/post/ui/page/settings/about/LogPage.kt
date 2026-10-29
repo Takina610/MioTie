@@ -46,9 +46,9 @@ import androidx.compose.ui.unit.sp
 import com.huanchengfly.tieba.post.R
 import com.huanchengfly.tieba.post.toastShort
 import com.huanchengfly.tieba.post.ui.common.theme.compose.ExtendedTheme
-import com.huanchengfly.tieba.post.ui.widgets.compose.BackNavigationIcon
-import com.huanchengfly.tieba.post.ui.widgets.compose.MyScaffold
-import com.huanchengfly.tieba.post.ui.widgets.compose.TitleCentredToolbar
+import com.huanchengfly.tieba.post.ui.page.settings.IosTopBarScaffold
+import com.huanchengfly.tieba.post.ui.glass.GlassIconButton
+import com.huanchengfly.tieba.post.ui.glass.SfIcon
 import com.ramcosta.composedestinations.annotation.Destination
 import com.ramcosta.composedestinations.navigation.DestinationsNavigator
 import kotlinx.coroutines.Dispatchers
@@ -109,60 +109,48 @@ fun LogPage(
 
     LaunchedEffect(Unit) { refresh() }
 
-    MyScaffold(
-        backgroundColor = Color.Transparent,
-        topBar = {
-            TitleCentredToolbar(
-                title = {
-                    Text(
-                        text = stringResource(id = R.string.title_app_logs),
-                        fontWeight = FontWeight.Bold, style = MaterialTheme.typography.h6
+    IosTopBarScaffold(
+        title = stringResource(id = R.string.title_app_logs),
+        onNavigateBack = { navigator.navigateUp() },
+        actions = {
+            GlassIconButton(onClick = {
+                coroutineScope.launch {
+                    clipboardManager.setText(
+                        AnnotatedString(
+                            entries.joinToString("\n") { "${it.time} ${it.level}/${it.tag}: ${it.message}" }
+                        )
                     )
-                },
-                navigationIcon = {
-                    BackNavigationIcon(onBackPressed = { navigator.navigateUp() })
-                },
-                actions = {
-                    IconButton(onClick = {
-                        coroutineScope.launch {
-                            clipboardManager.setText(
-                                AnnotatedString(
-                                    entries.joinToString("\n") { "${it.time} ${it.level}/${it.tag}: ${it.message}" }
-                                )
-                            )
-                            context.toastShort(R.string.toast_copied)
-                        }
-                    }) {
-                        Icon(Icons.Rounded.TextSnippet, contentDescription = stringResource(id = R.string.button_copy))
-                    }
-                    IconButton(onClick = {
-                        val text = entries.joinToString("\n") { "${it.time} ${it.level}/${it.tag}: ${it.message}" }
-                        val sendIntent = Intent(Intent.ACTION_SEND).apply {
-                            type = "text/plain"
-                            putExtra(Intent.EXTRA_TEXT, text)
-                        }
-                        context.startActivity(Intent.createChooser(sendIntent, null))
-                    }) {
-                        Icon(Icons.Rounded.Share, contentDescription = stringResource(id = R.string.button_share))
-                    }
-                    IconButton(onClick = {
-                        coroutineScope.launch {
-                            withContext(Dispatchers.IO) {
-                                Runtime.getRuntime().exec(arrayOf("logcat", "-c")).waitFor()
-                            }
-                            refresh()
-                        }
-                    }) {
-                        Icon(Icons.Rounded.Delete, contentDescription = stringResource(id = R.string.button_clear))
-                    }
+                    context.toastShort(R.string.toast_copied)
                 }
-            )
-        }
-    ) { paddingValues ->
+            }) {
+                SfIcon("square.on.square", stringResource(id = R.string.button_copy), size = 19.dp)
+            }
+            GlassIconButton(onClick = {
+                val text = entries.joinToString("\n") { "${it.time} ${it.level}/${it.tag}: ${it.message}" }
+                val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_TEXT, text)
+                }
+                context.startActivity(Intent.createChooser(sendIntent, null))
+            }) {
+                SfIcon("square.and.arrow.up", stringResource(id = R.string.button_share), size = 19.dp)
+            }
+            GlassIconButton(onClick = {
+                coroutineScope.launch {
+                    withContext(Dispatchers.IO) {
+                        Runtime.getRuntime().exec(arrayOf("logcat", "-c")).waitFor()
+                    }
+                    refresh()
+                }
+            }) {
+                SfIcon("trash", stringResource(id = R.string.button_clear), size = 19.dp)
+            }
+        },
+    ) { contentPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
+                .padding(contentPadding)
         ) {
             // 级别过滤
             Row(

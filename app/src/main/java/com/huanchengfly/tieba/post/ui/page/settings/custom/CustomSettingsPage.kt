@@ -78,16 +78,14 @@ import com.huanchengfly.tieba.post.goToActivity
 import com.huanchengfly.tieba.post.rememberPreferenceAsMutableState
 import com.huanchengfly.tieba.post.rememberPreferenceAsState
 import com.huanchengfly.tieba.post.ui.common.theme.compose.ExtendedTheme
-import com.huanchengfly.tieba.post.ui.page.settings.components.AppearanceCard
-import com.huanchengfly.tieba.post.ui.page.settings.components.CardDivider
+import com.huanchengfly.tieba.post.ui.page.settings.IosSettingsScaffold
+import com.huanchengfly.tieba.post.ui.page.settings.SettingsGroup
 import com.huanchengfly.tieba.post.ui.page.settings.components.SectionLabel
 import com.huanchengfly.tieba.post.ui.page.settings.components.SettingRow
 import com.huanchengfly.tieba.post.ui.page.settings.components.SwitchSettingRow
 import com.huanchengfly.tieba.post.ui.page.settings.custom.components.ColorDotGrid
 import com.huanchengfly.tieba.post.ui.page.settings.custom.components.HctColorPickerDialog
 import com.huanchengfly.tieba.post.ui.widgets.compose.BackNavigationIcon
-import com.huanchengfly.tieba.post.ui.widgets.compose.MyScaffold
-import com.huanchengfly.tieba.post.ui.widgets.compose.TitleCentredToolbar
 import com.huanchengfly.tieba.post.ui.widgets.compose.rememberDialogState
 import com.huanchengfly.tieba.post.utils.appPreferences
 import com.huanchengfly.tieba.post.utils.ThemeUtil
@@ -152,7 +150,8 @@ fun CustomSettingsPage(
         defaultValue = false
     )
     val dynamicSelected = useDynamicColorTheme && !useSeedTheme
-    val reduceTransparency by context.dataStore.collectPreferenceAsState(
+    // 与下方「降低透明度」开关共用同一份状态：单一状态源，避免两处读数不一致
+    var reduceTransparency by rememberPreferenceAsMutableState(
         key = booleanPreferencesKey("reduceTransparency"),
         defaultValue = false
     )
@@ -203,38 +202,18 @@ fun CustomSettingsPage(
         ThemeUtil.switchTheme(ThemeUtil.THEME_CUSTOM)
     }
 
-    MyScaffold(
-        backgroundColor = Color.Transparent,
-        topBar = {
-            TitleCentredToolbar(
-                title = {
-                    Text(
-                        text = stringResource(id = R.string.title_settings_custom),
-                        fontWeight = FontWeight.Bold, style = MaterialTheme.typography.h6
-                    )
-                },
-                navigationIcon = {
-                    BackNavigationIcon(onBackPressed = { navigator.navigateUp() })
-                }
-            )
-        },
-    ) { paddingValues ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues),
-            contentPadding = PaddingValues(vertical = 8.dp)
-        ) {
-            // ── 主题模式
-            item {
-                SectionLabel(text = stringResource(id = R.string.title_theme_mode), icon = Icons.Rounded.BrightnessAuto)
-            }
-            item {
+    IosSettingsScaffold(
+        title = stringResource(id = R.string.title_settings_custom),
+        onNavigateBack = { navigator.navigateUp() },
+    ) {
+        // ── 主题模式
+        item {
+            SettingsGroup(stringResource(id = R.string.title_theme_mode)) {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 5.dp)
+                        .padding(horizontal = 16.dp, vertical = 5.dp),
                 ) {
                     ModeCard(
                         label = stringResource(id = R.string.title_theme_mode_auto),
@@ -273,17 +252,16 @@ fun CustomSettingsPage(
                     )
                 }
             }
+        }
 
-            // ── 深色样式
-            item {
-                SectionLabel(text = stringResource(id = R.string.title_dark_style), icon = Icons.Rounded.DarkMode)
-            }
-            item {
+        // ── 深色样式
+        item {
+            SettingsGroup(stringResource(id = R.string.title_dark_style)) {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 5.dp)
+                        .padding(horizontal = 16.dp, vertical = 5.dp),
                 ) {
                     DarkStyleOptions.forEach { option ->
                         DarkStyleCard(
@@ -301,12 +279,11 @@ fun CustomSettingsPage(
                     }
                 }
             }
+        }
 
-            // ── 主题色彩（MD3 种子色点网格 + 跟随系统 + HCT 自定义取色器）
-            item {
-                SectionLabel(text = stringResource(id = R.string.title_theme_color), icon = Icons.Rounded.Palette)
-            }
-            item {
+        // ── 主题色彩（MD3 种子色点网格 + 跟随系统 + HCT 自定义取色器）
+        item {
+            SettingsGroup(stringResource(id = R.string.title_theme_color)) {
                 ColorDotGrid(
                     currentSeedHex = seedColorPref,
                     dynamicSelected = dynamicSelected,
@@ -326,18 +303,17 @@ fun CustomSettingsPage(
                     },
                 )
             }
+        }
 
-            // ── 配色风格（MD3 DynamicSchemeVariant，色卡即预览）
-            item {
-                SectionLabel(text = schemeStyleLabel)
-            }
-            item {
+        // ── 配色风格（MD3 DynamicSchemeVariant，色卡即预览）
+        item {
+            SettingsGroup(schemeStyleLabel) {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     modifier = Modifier
                         .fillMaxWidth()
                         .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp, vertical = 5.dp)
+                        .padding(horizontal = 16.dp, vertical = 5.dp),
                 ) {
                     schemeVariants.forEach { variantId ->
                         val style = runCatching { PaletteStyle.valueOf(variantId) }
@@ -366,106 +342,90 @@ fun CustomSettingsPage(
                     }
                 }
             }
+        }
 
-            // ── 界面（对齐 MeiloX 外观设置的三项）
-            item {
-                SectionLabel(text = stringResource(id = R.string.title_interface), icon = Icons.Rounded.Tune)
+        // ── 界面（对齐 MeiloX 外观设置的三项）
+        item {
+            SettingsGroup(stringResource(id = R.string.title_interface)) {
+                SwitchSettingRow(
+                    systemName = "rectangle.portrait.and.arrow.forward",
+                    title = stringResource(id = R.string.title_fixed_bottom_bar),
+                    summary = stringResource(id = R.string.summary_fixed_bottom_bar),
+                    key = "keepBottomBarExpanded",
+                    defaultValue = false,
+                )
+                SwitchSettingRow(
+                    systemName = "circle.grid.2x2.fill",
+                    title = stringResource(id = R.string.title_liquid_glass),
+                    summary = stringResource(id = R.string.summary_liquid_glass),
+                    key = "liquidGlassEnabled",
+                    defaultValue = true,
+                    enabled = !reduceTransparency,
+                )
+                SwitchSettingRow(
+                    systemName = "circle.lefthalf.filled",
+                    title = stringResource(id = R.string.title_reduce_transparency),
+                    summary = stringResource(id = R.string.summary_reduce_transparency),
+                    checked = reduceTransparency,
+                    onCheckedChange = { reduceTransparency = it },
+                )
             }
-            item {
-                AppearanceCard {
-                    SwitchSettingRow(
-                        icon = Icons.Rounded.VerticalAlignBottom,
-                        title = stringResource(id = R.string.title_fixed_bottom_bar),
-                        summary = stringResource(id = R.string.summary_fixed_bottom_bar),
-                        key = "keepBottomBarExpanded",
-                        defaultValue = false,
-                    )
-                    CardDivider()
-                    SwitchSettingRow(
-                        icon = Icons.Rounded.BlurOn,
-                        title = stringResource(id = R.string.title_liquid_glass),
-                        summary = stringResource(id = R.string.summary_liquid_glass),
-                        key = "liquidGlassEnabled",
-                        defaultValue = true,
-                        enabled = !reduceTransparency,
-                    )
-                    CardDivider()
-                    SwitchSettingRow(
-                        icon = Icons.Rounded.Opacity,
-                        title = stringResource(id = R.string.title_reduce_transparency),
-                        summary = stringResource(id = R.string.summary_reduce_transparency),
-                        key = "reduceTransparency",
-                        defaultValue = false,
-                    )
-                }
-            }
+        }
 
-            // ── 更多
-            item {
-                SectionLabel(text = stringResource(id = R.string.title_theme_more))
+        // ── 更多
+        item {
+            SettingsGroup(stringResource(id = R.string.title_theme_more)) {
+                SwitchSettingRow(
+                    systemName = "photo",
+                    title = stringResource(id = R.string.title_settings_status_bar_darker),
+                    summary = stringResource(id = R.string.summary_settings_status_bar_darker),
+                    key = "status_bar_darker",
+                    defaultValue = true,
+                )
+                SwitchSettingRow(
+                    systemName = "paintpalette",
+                    title = stringResource(id = R.string.tip_toolbar_primary_color),
+                    summary = stringResource(id = R.string.tip_toolbar_primary_color_summary),
+                    key = "toolbarPrimaryColor",
+                    defaultValue = false,
+                )
+                SwitchSettingRow(
+                    systemName = "list.bullet",
+                    title = stringResource(id = R.string.settings_forum_single),
+                    key = "listSingle",
+                    defaultValue = false,
+                )
+                SwitchSettingRow(
+                    systemName = "safari",
+                    title = stringResource(id = R.string.title_hide_explore),
+                    key = "hideExplore",
+                    defaultValue = false,
+                )
+                SwitchSettingRow(
+                    systemName = "rectangle.grid.1x2",
+                    title = stringResource(id = R.string.title_floating_bottom_nav),
+                    summary = stringResource(id = R.string.summary_floating_bottom_nav),
+                    key = "floatingBottomNav",
+                    defaultValue = true,
+                )
+                SwitchSettingRow(
+                    systemName = "arrow.up.circle.fill",
+                    title = stringResource(id = R.string.title_lift_up_bottom_bar),
+                    summary = stringResource(id = R.string.summary_lift_up_bottom_bar),
+                    key = "liftUpBottomBar",
+                    defaultValue = true,
+                )
             }
-            item {
-                AppearanceCard {
-                    SwitchSettingRow(
-                        icon = Icons.Rounded.PhotoSizeSelectActual,
-                        title = stringResource(id = R.string.title_settings_status_bar_darker),
-                        summary = stringResource(id = R.string.summary_settings_status_bar_darker),
-                        key = "status_bar_darker",
-                        defaultValue = true,
-                    )
-                    CardDivider()
-                    SwitchSettingRow(
-                        icon = Icons.Rounded.FormatColorFill,
-                        title = stringResource(id = R.string.tip_toolbar_primary_color),
-                        summary = stringResource(id = R.string.tip_toolbar_primary_color_summary),
-                        key = "toolbarPrimaryColor",
-                        defaultValue = false,
-                    )
-                    CardDivider()
-                    SwitchSettingRow(
-                        icon = Icons.Rounded.ViewAgenda,
-                        title = stringResource(id = R.string.settings_forum_single),
-                        key = "listSingle",
-                        defaultValue = false,
-                    )
-                    CardDivider()
-                    SwitchSettingRow(
-                        icon = Icons.Rounded.Explore,
-                        title = stringResource(id = R.string.title_hide_explore),
-                        key = "hideExplore",
-                        defaultValue = false,
-                    )
-                    CardDivider()
-                    SwitchSettingRow(
-                        icon = Icons.Rounded.Dock,
-                        title = stringResource(id = R.string.title_floating_bottom_nav),
-                        summary = stringResource(id = R.string.summary_floating_bottom_nav),
-                        key = "floatingBottomNav",
-                        defaultValue = true,
-                    )
-                    CardDivider()
-                    SwitchSettingRow(
-                        icon = Icons.Rounded.Upcoming,
-                        title = stringResource(id = R.string.title_lift_up_bottom_bar),
-                        summary = stringResource(id = R.string.summary_lift_up_bottom_bar),
-                        key = "liftUpBottomBar",
-                        defaultValue = true,
-                    )
-                }
-            }
+        }
 
-            // ── 字体
-            item {
-                SectionLabel(text = stringResource(id = R.string.title_custom_font_size))
-            }
-            item {
-                AppearanceCard {
-                    SettingRow(
-                        icon = Icons.Rounded.FontDownload,
-                        title = stringResource(id = R.string.title_custom_font_size),
-                        onClick = { context.goToActivity<AppFontSizeActivity>() }
-                    )
-                }
+        // ── 字体
+        item {
+            SettingsGroup(stringResource(id = R.string.title_custom_font_size)) {
+                SettingRow(
+                    systemName = "textformat.size",
+                    title = stringResource(id = R.string.title_custom_font_size),
+                    onClick = { context.goToActivity<AppFontSizeActivity>() }
+                )
             }
         }
     }
@@ -476,9 +436,9 @@ fun CustomSettingsPage(
         isNight = currentIsNight,
         schemeVariant = schemeVariant,
         onConfirm = { color ->
-            val hex = formatColorHex(color.toArgb())
-            applySeedColor(hex)
-            customColorsRaw = serializeCustomSeedColors(customColors + hex)
+        val hex = formatColorHex(color.toArgb())
+        applySeedColor(hex)
+        customColorsRaw = serializeCustomSeedColors(customColors + hex)
         }
     )
 }
@@ -506,39 +466,39 @@ private fun MiniScreenPreview(
     val (background, primary, text) = ThemeMiniColors(theme)
     Column(
         modifier = modifier
-            .background(background)
-            .padding(5.dp)
+        .background(background)
+        .padding(5.dp)
     ) {
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(8.dp)
-                .clip(RoundedCornerShape(3.dp))
-                .background(primary)
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(8.dp)
+            .clip(RoundedCornerShape(3.dp))
+            .background(primary)
         )
         Spacer(modifier = Modifier.size(4.dp))
         Box(
-            modifier = Modifier
-                .fillMaxWidth(0.6f)
-                .height(4.dp)
-                .clip(CircleShape)
-                .background(text.copy(alpha = 0.55f))
+        modifier = Modifier
+            .fillMaxWidth(0.6f)
+            .height(4.dp)
+            .clip(CircleShape)
+            .background(text.copy(alpha = 0.55f))
         )
         Spacer(modifier = Modifier.size(3.dp))
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .clip(RoundedCornerShape(3.dp))
-                .background(text.copy(alpha = 0.12f))
+        modifier = Modifier
+            .fillMaxWidth()
+            .weight(1f)
+            .clip(RoundedCornerShape(3.dp))
+            .background(text.copy(alpha = 0.12f))
         )
         Spacer(modifier = Modifier.size(3.dp))
         Box(
-            modifier = Modifier
-                .fillMaxWidth(0.85f)
-                .height(4.dp)
-                .clip(CircleShape)
-                .background(text.copy(alpha = 0.3f))
+        modifier = Modifier
+            .fillMaxWidth(0.85f)
+            .height(4.dp)
+            .clip(CircleShape)
+            .background(text.copy(alpha = 0.3f))
         )
     }
 }
@@ -561,68 +521,68 @@ private fun ModeCard(
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = modifier
-            .clip(RoundedCornerShape(20.dp))
-            .background(
-                color = if (selected) {
-                    ExtendedTheme.colors.primary.copy(alpha = 0.10f)
-                } else {
-                    ExtendedTheme.colors.card
-                }
-            )
-            .border(
-                width = if (selected) 2.dp else 1.dp,
-                color = borderColor,
-                shape = RoundedCornerShape(20.dp)
-            )
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = {
-                    hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    onClick()
-                }
-            )
-            .padding(10.dp)
+        .clip(RoundedCornerShape(20.dp))
+        .background(
+            color = if (selected) {
+                ExtendedTheme.colors.primary.copy(alpha = 0.10f)
+            } else {
+                ExtendedTheme.colors.card
+            }
+        )
+        .border(
+            width = if (selected) 2.dp else 1.dp,
+            color = borderColor,
+            shape = RoundedCornerShape(20.dp)
+        )
+        .clickable(
+            interactionSource = remember { MutableInteractionSource() },
+            indication = null,
+            onClick = {
+                hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                onClick()
+            }
+        )
+        .padding(10.dp)
     ) {
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(1.35f)
-                .clip(RoundedCornerShape(12.dp))
+        modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(1.35f)
+            .clip(RoundedCornerShape(12.dp))
         ) {
-            preview()
-            if (selected) {
-                Icon(
-                    imageVector = Icons.Rounded.Check,
-                    contentDescription = stringResource(id = R.string.desc_checked),
-                    tint = ExtendedTheme.colors.background,
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(5.dp)
-                        .size(18.dp)
-                        .clip(CircleShape)
-                        .background(ExtendedTheme.colors.primary)
-                        .padding(3.dp)
-                )
-            }
+        preview()
+        if (selected) {
+            Icon(
+                imageVector = Icons.Rounded.Check,
+                contentDescription = stringResource(id = R.string.desc_checked),
+                tint = ExtendedTheme.colors.background,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(5.dp)
+                    .size(18.dp)
+                    .clip(CircleShape)
+                    .background(ExtendedTheme.colors.primary)
+                    .padding(3.dp)
+            )
+        }
         }
         Spacer(modifier = Modifier.size(8.dp))
         Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(5.dp)
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(5.dp)
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = if (selected) ExtendedTheme.colors.primary else ExtendedTheme.colors.textSecondary,
-                modifier = Modifier.size(15.dp)
-            )
-            Text(
-                text = label,
-                fontSize = 13.sp,
-                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                color = if (selected) ExtendedTheme.colors.primary else ExtendedTheme.colors.text
-            )
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = if (selected) ExtendedTheme.colors.primary else ExtendedTheme.colors.textSecondary,
+            modifier = Modifier.size(15.dp)
+        )
+        Text(
+            text = label,
+            fontSize = 13.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+            color = if (selected) ExtendedTheme.colors.primary else ExtendedTheme.colors.text
+        )
         }
     }
 }
@@ -648,54 +608,54 @@ private fun DarkStyleCard(
         modifier = modifier
     ) {
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(48.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(background)
-                .border(
-                    width = if (selected) 2.dp else 1.dp,
-                    color = borderColor,
-                    shape = RoundedCornerShape(12.dp)
-                )
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = {
-                        hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        onClick()
-                    }
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.NightsStay,
-                contentDescription = null,
-                tint = primary,
-                modifier = Modifier.size(18.dp)
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(48.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(background)
+            .border(
+                width = if (selected) 2.dp else 1.dp,
+                color = borderColor,
+                shape = RoundedCornerShape(12.dp)
             )
-            if (selected) {
-                Icon(
-                    imageVector = Icons.Rounded.Check,
-                    contentDescription = stringResource(id = R.string.desc_checked),
-                    tint = background,
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(3.dp)
-                        .size(14.dp)
-                        .clip(CircleShape)
-                        .background(primary)
-                        .padding(2.dp)
-                )
-            }
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = {
+                    hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onClick()
+                }
+            ),
+        contentAlignment = Alignment.Center
+        ) {
+        Icon(
+            imageVector = Icons.Rounded.NightsStay,
+            contentDescription = null,
+            tint = primary,
+            modifier = Modifier.size(18.dp)
+        )
+        if (selected) {
+            Icon(
+                imageVector = Icons.Rounded.Check,
+                contentDescription = stringResource(id = R.string.desc_checked),
+                tint = background,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(3.dp)
+                    .size(14.dp)
+                    .clip(CircleShape)
+                    .background(primary)
+                    .padding(2.dp)
+            )
+        }
         }
         Spacer(modifier = Modifier.size(6.dp))
         Text(
-            text = name,
-            fontSize = 12.sp,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-            textAlign = TextAlign.Center,
-            color = if (selected) ExtendedTheme.colors.primary else ExtendedTheme.colors.text
+        text = name,
+        fontSize = 12.sp,
+        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+        textAlign = TextAlign.Center,
+        color = if (selected) ExtendedTheme.colors.primary else ExtendedTheme.colors.text
         )
     }
 }
@@ -718,48 +678,48 @@ private fun VariantCard(
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
-            .width(120.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(color = ExtendedTheme.colors.card)
-            .border(
-                width = if (selected) 2.dp else 1.dp,
-                color = borderColor,
-                shape = RoundedCornerShape(16.dp)
-            )
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = {
-                    hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    onClick()
-                }
-            )
+        .width(120.dp)
+        .clip(RoundedCornerShape(16.dp))
+        .background(color = ExtendedTheme.colors.card)
+        .border(
+            width = if (selected) 2.dp else 1.dp,
+            color = borderColor,
+            shape = RoundedCornerShape(16.dp)
+        )
+        .clickable(
+            interactionSource = remember { MutableInteractionSource() },
+            indication = null,
+            onClick = {
+                hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                onClick()
+            }
+        )
     ) {
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(72.dp)
-                .background(primary)
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(72.dp)
+            .background(primary)
         )
         Spacer(modifier = Modifier.size(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            listOf(primary, secondary, tertiary).forEach { color ->
-                Spacer(
-                    modifier = Modifier
-                        .size(7.dp)
-                        .clip(CircleShape)
-                        .background(color)
-                )
-            }
+        listOf(primary, secondary, tertiary).forEach { color ->
+            Spacer(
+                modifier = Modifier
+                    .size(7.dp)
+                    .clip(CircleShape)
+                    .background(color)
+            )
+        }
         }
         Spacer(modifier = Modifier.size(4.dp))
         Text(
-            text = label,
-            fontSize = 12.sp,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-            color = if (selected) ExtendedTheme.colors.primary else ExtendedTheme.colors.text,
-            maxLines = 1,
-            modifier = Modifier.padding(horizontal = 8.dp)
+        text = label,
+        fontSize = 12.sp,
+        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+        color = if (selected) ExtendedTheme.colors.primary else ExtendedTheme.colors.text,
+        maxLines = 1,
+        modifier = Modifier.padding(horizontal = 8.dp)
         )
         Spacer(modifier = Modifier.size(8.dp))
     }
