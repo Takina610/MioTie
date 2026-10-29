@@ -25,6 +25,9 @@ import com.kyant.backdrop.effects.vibrancy
 import com.kyant.backdrop.highlight.Highlight
 import com.kyant.backdrop.highlight.HighlightStyle
 
+/** 背景模糊（RenderEffect）需要 API 31+。 */
+fun supportsBackdropBlur(): Boolean = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S
+
 /** 普通毛玻璃模糊半径（Glasmio navigationGlassBackground 默认 2dp）。 */
 private val GlassBlurRadius = 2.dp
 

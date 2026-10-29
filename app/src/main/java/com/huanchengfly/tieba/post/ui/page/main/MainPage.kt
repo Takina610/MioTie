@@ -417,7 +417,6 @@ fun MainPage(
                                     account = account,
                                     currentPosition = currentPosition,
                                     onChangePosition = onChangePosition,
-                                    onReselected = onReselected,
                                     onExpand = { bottomBarsExpanded = true },
                                     navigationItems = navigationItems,
                                     backdrop = dockBackdrop,

@@ -18,7 +18,7 @@
  * limitations under the License.
  */
 
-package com.huanchengfly.tieba.post.ui.widgets.compose
+package com.huanchengfly.tieba.post.ui.liquidglass
 
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -32,13 +32,7 @@ import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.util.fastFirstOrNull
 
-/**
- * 与 Glasmio `inspectDragGestures` 一致的手势巡测：
- * 按下即回调 [onDragStart]，不设触摸 slop，每次位移都回调 [onDrag]；
- * 手指抬起回调 [onDragEnd]，被其他手势吃掉回调 [onDragCancel]。
- */
-internal suspend fun PointerInputScope.inspectDragGestures(
-    consumeGestures: Boolean = false,
+suspend fun PointerInputScope.inspectDragGestures(
     onDragStart: (down: PointerInputChange) -> Unit = {},
     onDragEnd: (change: PointerInputChange) -> Unit = {},
     onDragCancel: () -> Unit = {},
@@ -48,22 +42,17 @@ internal suspend fun PointerInputScope.inspectDragGestures(
         val initialDown = awaitFirstDown(false, PointerEventPass.Initial)
         val down = awaitFirstDown(false)
         val drag = initialDown
-        if (consumeGestures) down.consume()
 
         onDragStart(down)
         onDrag(drag, Offset.Zero)
         val upEvent =
             drag(
                 pointerId = drag.id,
-                onDrag = {
-                    onDrag(it, it.positionChange())
-                    if (consumeGestures) it.consume()
-                }
+                onDrag = { onDrag(it, it.positionChange()) }
             )
         if (upEvent == null) {
             onDragCancel()
         } else {
-            if (consumeGestures) upEvent.consume()
             onDragEnd(upEvent)
         }
     }

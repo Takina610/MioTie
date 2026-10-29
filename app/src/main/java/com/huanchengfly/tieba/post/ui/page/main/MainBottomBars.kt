@@ -30,6 +30,8 @@ import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -51,19 +53,32 @@ import com.huanchengfly.tieba.post.R
 import com.huanchengfly.tieba.post.models.database.Account
 import com.huanchengfly.tieba.post.ui.common.theme.compose.ExtendedColors
 import com.huanchengfly.tieba.post.ui.common.theme.compose.ExtendedTheme
+import com.huanchengfly.tieba.post.ui.glass.CompactBottomControlIconSize
+import com.huanchengfly.tieba.post.ui.glass.GlassAppearance
+import com.huanchengfly.tieba.post.ui.glass.GlassBottomBar
+import com.huanchengfly.tieba.post.ui.glass.GlassIconButton
+import com.huanchengfly.tieba.post.ui.glass.GlassSurfaceStyle
+import com.huanchengfly.tieba.post.ui.glass.GlassTabItem
+import com.huanchengfly.tieba.post.ui.glass.LocalGlassAppearance
+import com.huanchengfly.tieba.post.ui.glass.LocalGlassBackdrop
+import com.huanchengfly.tieba.post.ui.glass.LocalGlassColors
+import com.huanchengfly.tieba.post.ui.glass.SfIcon
+import com.huanchengfly.tieba.post.ui.glass.SfSymbol
+import com.huanchengfly.tieba.post.ui.glass.defaultGlassColors
 import com.huanchengfly.tieba.post.ui.widgets.compose.Avatar
 import com.huanchengfly.tieba.post.ui.widgets.compose.AvatarPlaceholder
-import com.huanchengfly.tieba.post.ui.widgets.compose.DockCompactHeight
-import com.huanchengfly.tieba.post.ui.widgets.compose.DockNavBarHeight
-import com.huanchengfly.tieba.post.ui.widgets.compose.DockSearchButton
-import com.huanchengfly.tieba.post.ui.widgets.compose.DockSearchSize
-import com.huanchengfly.tieba.post.ui.widgets.compose.FloatingDock
 import com.huanchengfly.tieba.post.ui.widgets.compose.GlassCapsule
 import com.huanchengfly.tieba.post.ui.widgets.compose.glassDockTint
 import com.huanchengfly.tieba.post.ui.widgets.compose.supportsBackdropBlur
 import com.huanchengfly.tieba.post.utils.StringUtil
 import com.kyant.backdrop.Backdrop
 import kotlinx.collections.immutable.ImmutableList
+
+/** 导航胶囊高度（对齐 MeiloX 1.55.1 NavigationBarSurfaceHeight = 64dp）。 */
+private val DockNavBarHeight = 64.dp
+
+/** 下沉态圆钮直径（对齐 MeiloX MiniPlayerHeight = 44dp）。 */
+private val DockCompactHeight = 44.dp
 
 /** 个人信息条高度（对齐 MeiloX 迷你播放条）。 */
 private val UserInfoBarHeight = 44.dp
@@ -87,13 +102,21 @@ private val UserInfoBarAvatarSize = 28.dp
 val MainBottomOverlayHeight =
     UserInfoBarHeight + MainBottomBarGap + DockNavBarHeight + MainBottomBarMargin
 
+/** 搜索钮宿主边长（对齐 MeiloX 1.55.1 的 64dp Box）。 */
+private val SearchHostSize = 64.dp
+
+/** 搜索钮下沉态直径（64 - 16dp，对齐 GlassIconButton morph）。 */
+private val CompactSearchSize = 48.dp
+
+/** 个人信息条下沉时在 64dp 行内的垂直内缩：居中对齐 44dp 圆钮。 */
+private val UserInfoCompactInset = (DockNavBarHeight - UserInfoBarHeight) / 2f
+
 /**
- * 底部悬浮区（对齐 MeiloX）：
- * - 展开态：上方个人信息条，下方导航胶囊 + 搜索圆钮；
- * - 下沉态（滚动后）：三者并成一行——左侧当前页圆形按钮、中间个人信息条、右侧搜索圆钮，
- *   宽度/高度/透明度按 [compact] 以 spring 过渡。
+ * 底部悬浮区（照搬 MeiloX 1.55.1 AnimatedBottomNavigationRow）：
+ * - 展开态：上方个人信息条，下方 GlassBottomBar + 搜索圆钮；
+ * - 下沉态：导航栏在 64dp 宿主内缩成 44dp 圆钮，个人信息条与搜索钮同排居中。
  *
- * @param onExpand 点击下沉态胶囊展开回完整导航栏
+ * @param onExpand 点击下沉态圆钮展开回完整导航栏
  * @param onUserClick 个人信息条点击（进入我的页面）
  */
 @Composable
@@ -101,7 +124,6 @@ fun MainBottomBars(
     account: Account?,
     currentPosition: Int,
     onChangePosition: (position: Int) -> Unit,
-    onReselected: (position: Int) -> Unit,
     onExpand: () -> Unit,
     navigationItems: ImmutableList<NavigationItem>,
     backdrop: Backdrop,
@@ -110,11 +132,29 @@ fun MainBottomBars(
     compact: Boolean,
     themeColors: ExtendedColors = ExtendedTheme.colors,
 ) {
-    val compactProgress by animateFloatAsState(
+    val compactProgress = animateFloatAsState(
         targetValue = if (compact) 1f else 0f,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "MainBottomBarsCompact",
     )
+    val accentColor = MaterialTheme.colors.secondary
+    val glassColors = remember(themeColors.isNightMode, accentColor) {
+        defaultGlassColors(
+            isDark = themeColors.isNightMode,
+            accent = accentColor,
+        )
+    }
+    val tabItems = ArrayList<GlassTabItem<Int>>(navigationItems.size)
+    var tabIndex = 0
+    while (tabIndex < navigationItems.size) {
+        val item = navigationItems[tabIndex]
+        tabItems += GlassTabItem(
+            key = tabIndex,
+            label = item.title(tabIndex == currentPosition),
+            symbol = item.glassSymbol(),
+        )
+        tabIndex++
+    }
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
@@ -127,15 +167,19 @@ fun MainBottomBars(
                 end = MainBottomBarHorizontalMargin,
             ),
     ) {
-        val progress = compactProgress.coerceIn(0f, 1f)
+        val progress = compactProgress.value.coerceIn(0f, 1f)
         val usableWidth = maxWidth
         val gap = MainBottomBarGap
-        val expandedDockWidth = usableWidth - DockSearchSize - gap
-        // 展开: 44 + 8 + 64；下沉: 44（三者同排）
-        val overlayHeight = lerp(UserInfoBarHeight + gap + DockNavBarHeight, DockCompactHeight, progress)
-        val infoWidth = lerp(usableWidth, usableWidth - (DockCompactHeight + gap) * 2, progress)
+        val expandedDockWidth = usableWidth - SearchHostSize - gap
+        // 展开: 44 + 8 + 64；下沉: 64（GlassBottomBar 宿主保持 64，内部缩到 44）
+        val overlayHeight = lerp(UserInfoBarHeight + gap + DockNavBarHeight, DockNavBarHeight, progress)
+        val infoWidth = lerp(
+            usableWidth,
+            usableWidth - (DockCompactHeight + gap) - (CompactSearchSize + gap),
+            progress,
+        )
         val compactInfoOffset = (DockCompactHeight + gap) * progress
-        val dockWidth = lerp(expandedDockWidth, DockCompactHeight, progress)
+        val infoCompactInset = UserInfoCompactInset * progress
 
         Layout(
             content = {
@@ -145,23 +189,32 @@ fun MainBottomBars(
                     themeColors = themeColors,
                     onClick = onUserClick,
                 )
-                FloatingDock(
-                    currentPosition = currentPosition,
-                    onChangePosition = onChangePosition,
-                    onReselected = onReselected,
-                    onExpand = onExpand,
-                    navigationItems = navigationItems,
-                    backdrop = backdrop,
-                    compactProgress = progress,
-                    expandedWidth = expandedDockWidth,
-                    themeColors = themeColors,
-                )
-                DockSearchButton(
-                    backdrop = backdrop,
-                    compactProgress = progress,
-                    onClick = onSearchClick,
-                    themeColors = themeColors,
-                )
+                CompositionLocalProvider(
+                    LocalGlassColors provides glassColors,
+                    LocalGlassAppearance provides GlassAppearance(),
+                    LocalGlassBackdrop provides backdrop,
+                ) {
+                    GlassBottomBar(
+                        items = tabItems,
+                        selectedKey = currentPosition,
+                        onSelected = onChangePosition,
+                        onExpand = onExpand,
+                        compactProgress = compactProgress,
+                        compactSize = DockCompactHeight,
+                        backdrop = backdrop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.CenterEnd,
+                    ) {
+                        GlassSearchButton(
+                            backdrop = backdrop,
+                            compactProgress = compactProgress,
+                            onClick = onSearchClick,
+                        )
+                    }
+                }
             },
             modifier = Modifier
                 .fillMaxWidth()
@@ -170,25 +223,58 @@ fun MainBottomBars(
             val width = constraints.maxWidth
             val height = constraints.maxHeight
             val infoW = infoWidth.roundToPx()
-            val dockW = dockWidth.roundToPx()
-            val searchSize = lerp(DockSearchSize, DockCompactHeight, progress).roundToPx()
+            val dockW = expandedDockWidth.roundToPx()
+            val dockH = DockNavBarHeight.roundToPx()
+            val searchHost = SearchHostSize.roundToPx()
             val infoH = UserInfoBarHeight.roundToPx()
-            val dockHeight = lerp(DockNavBarHeight, DockCompactHeight, progress).roundToPx()
 
             val infoPlaceable = measurables[0].measure(Constraints.fixed(infoW, infoH))
-            val dockPlaceable = measurables[1].measure(Constraints.fixed(dockW, dockHeight))
-            val searchPlaceable = measurables[2].measure(Constraints.fixed(searchSize, searchSize))
+            val dockPlaceable = measurables[1].measure(Constraints.fixed(dockW, dockH))
+            val searchPlaceable = measurables[2].measure(Constraints.fixed(searchHost, dockH))
             layout(width, height) {
-                infoPlaceable.place(compactInfoOffset.roundToPx(), 0)
-                dockPlaceable.place(0, height - dockHeight)
-                // 展开态圆钮在 64dp 胶囊带内垂直居中（对齐 MeiloX Row CenterVertically）
-                searchPlaceable.place(
-                    width - searchSize,
-                    height - dockHeight + (dockHeight - searchSize) / 2,
+                infoPlaceable.place(
+                    x = compactInfoOffset.roundToPx(),
+                    y = infoCompactInset.roundToPx(),
                 )
+                dockPlaceable.place(0, height - dockH)
+                searchPlaceable.place(width - searchHost, height - dockH)
             }
         }
     }
+}
+
+/** 搜索钮（对齐 MeiloX 1.55.1 AnimatedHomeSearchButton）。 */
+@Composable
+private fun GlassSearchButton(
+    backdrop: Backdrop,
+    compactProgress: State<Float>,
+    onClick: () -> Unit,
+) {
+    val progress = compactProgress.value.coerceIn(0f, 1f)
+    GlassIconButton(
+        onClick = onClick,
+        backdrop = backdrop,
+        style = GlassSurfaceStyle.Navigation,
+        modifier = Modifier.size(lerp(SearchHostSize, CompactSearchSize, progress)),
+        morphProgress = compactProgress,
+        morphCaptureWidth = SearchHostSize,
+    ) {
+        SfIcon(
+            symbol = SfSymbol.Search,
+            contentDescription = null,
+            tint = LocalGlassColors.current.content,
+            size = 26.dp + (CompactBottomControlIconSize - 26.dp) * progress,
+            weight = FontWeight.SemiBold,
+        )
+    }
+}
+
+private fun NavigationItem.glassSymbol(): SfSymbol = when (id) {
+    "home" -> SfSymbol.House
+    "explore" -> SfSymbol.Safari
+    "notification" -> SfSymbol.BellBadge
+    "settings" -> SfSymbol.Settings
+    else -> SfSymbol.Sparkles
 }
 
 @Composable

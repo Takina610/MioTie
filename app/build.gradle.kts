@@ -165,6 +165,8 @@ dependencies {
 
     // 悬浮底栏毛玻璃
     implementation(libs.kyant.backdrop)
+    implementation(libs.kyant.shapes)
+    implementation(libs.kyant.capsule)
 
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.androidx.media3.ui)
