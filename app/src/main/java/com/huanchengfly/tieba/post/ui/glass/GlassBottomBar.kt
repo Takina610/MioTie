@@ -4,6 +4,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.EaseOut
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,8 +15,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -49,9 +53,11 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.constrainWidth
 import androidx.compose.ui.unit.constrainHeight
 import androidx.compose.ui.unit.dp
@@ -87,8 +93,9 @@ import kotlin.math.sin
 data class GlassTabItem<T>(
     val key: T,
     val label: String,
-    val symbol: SfSymbol,
+    val icon: @Composable (active: Boolean, tint: Color, size: Dp) -> Unit,
     val contentDescription: String = label,
+    val badgeText: String? = null,
 )
 
 @androidx.compose.runtime.Immutable
@@ -267,6 +274,14 @@ fun <T> GlassBottomBar(
                 .drop(1)
                 .collectLatest { index -> stableOnSelected(tabItems[index].key) }
         }
+        // 指示器滑到哪一格，哪一格的图标就切到“选中态”动画，和点按过去一致。
+        val activeIndex by remember(dragAnimation, tabItems.size) {
+            derivedStateOf {
+                dragAnimation.value.roundToInt()
+                    .coerceIn(0, tabItems.lastIndex.coerceAtLeast(0))
+            }
+        }
+        val activeTabKey = tabItems[activeIndex].key
         val interactiveHighlight = remember(
             animationScope,
             isLtr,
@@ -610,6 +625,7 @@ fun <T> GlassBottomBar(
                         FullTabContent(
                             items = stableItems,
                             selectedKey = selectedItem.key,
+                            activeKey = activeTabKey,
                             onSelected = stableOnSelected,
                             enabled = !compactMode,
                             alpha = tabContentAlpha,
@@ -660,6 +676,7 @@ fun <T> GlassBottomBar(
                             FullTabContent(
                                 items = stableItems,
                                 selectedKey = selectedItem.key,
+                                activeKey = activeTabKey,
                                 onSelected = stableOnSelected,
                                 // Keep the exported source interactive just like LiquidBottomTabs. It
                                 // is visually hidden, but it sits above the visible row in the hit-test tree.
@@ -714,6 +731,34 @@ fun <T> GlassBottomBar(
                     },
                 ),
         )
+
+        // 选中项角标画在指示器玻璃之上：lens source 会把整层染成 accent，
+        // 角标若留在 tab 内容里会变成一颗没有数字的实心圆点。
+        selectedItem.badgeText?.takeIf { compactState.value < CompactIndicatorFadeStart }?.let { text ->
+            val surfaceWidth = morphSurfaceWidthPx(fullWidthPx, compactWidthPx, compactState.value)
+            val tabWidth = ((surfaceWidth - paddingPx * 2f) / tabItems.size).coerceAtLeast(1f)
+            val tabCenter = paddingPx + (dragAnimation.value + 0.5f) * tabWidth
+            val morphCenter = lerp(tabCenter, compactWidthPx / 2f, compactState.value)
+            val fraction = (offsetAnimation.value / fullWidthPx).fastCoerceIn(-1f, 1f)
+            val panelOffset = paddingPx * fraction.sign * EaseOut.transform(abs(fraction))
+            val contentScale = visibleTabContentScale()
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .offset {
+                        IntOffset(
+                            x = (morphCenter + panelOffset + 7.dp.toPx()).roundToInt(),
+                            y = 4.5.dp.toPx().roundToInt(),
+                        )
+                    }
+                    .graphicsLayer {
+                        scaleX = contentScale
+                        scaleY = contentScale
+                    },
+            ) {
+                GlassTabBadge(text = text, color = colors.accent)
+            }
+        }
     }
 }
 
@@ -721,6 +766,7 @@ fun <T> GlassBottomBar(
 private fun <T> androidx.compose.foundation.layout.RowScope.FullTabContent(
     items: StableGlassTabItems<T>,
     selectedKey: T,
+    activeKey: T,
     onSelected: (T) -> Unit,
     enabled: Boolean,
     alpha: () -> Float,
@@ -755,6 +801,7 @@ private fun <T> androidx.compose.foundation.layout.RowScope.FullTabContent(
             NavigationTabContent(
                 item = item,
                 selected = selected,
+                iconActive = item.key == activeKey,
                 selectedColorFilter = selectedColorFilter,
             )
         }
@@ -765,30 +812,40 @@ private fun <T> androidx.compose.foundation.layout.RowScope.FullTabContent(
 private fun <T> NavigationTabContent(
     item: GlassTabItem<T>,
     selected: Boolean,
+    iconActive: Boolean = selected,
     selectedColorFilter: State<ColorFilter>? = null,
     selectedIconTint: Color? = null,
     labelAlpha: (() -> Float)? = null,
 ) {
     val colors = LocalGlassColors.current
     val labelVisibility = labelAlpha?.invoke()?.coerceIn(0f, 1f) ?: 1f
-    SfIcon(
-        symbol = item.symbol,
-        contentDescription = item.contentDescription,
-        tint = if (selected) selectedIconTint ?: colors.accent else colors.content,
-        size = ExpandedNavigationIconSize,
-        weight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-        modifier = Modifier
-            .padding(top = 3.dp * labelVisibility)
-            .then(
-                if (selected && selectedColorFilter != null) {
-                    Modifier.graphicsLayer {
-                        colorFilter = selectedColorFilter.value
-                    }
-                } else {
-                    Modifier
-                },
-            ),
-    )
+    Box(modifier = Modifier.padding(top = 3.dp * labelVisibility)) {
+        Box(
+            modifier = if (selected && selectedColorFilter != null) {
+                Modifier.graphicsLayer { colorFilter = selectedColorFilter.value }
+            } else {
+                Modifier
+            },
+        ) {
+            item.icon(
+                iconActive,
+                if (selected) selectedIconTint ?: colors.accent else colors.content,
+                ExpandedNavigationIconSize,
+            )
+        }
+        item.badgeText?.takeIf { !selected }?.let { text ->
+            GlassTabBadge(
+                text = text,
+                color = colors.accent,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .graphicsLayer {
+                        translationX = 8.dp.toPx()
+                        translationY = (-6).dp.toPx()
+                    },
+            )
+        }
+    }
     Text(
         text = item.label,
         color = colors.content,
@@ -820,6 +877,33 @@ private fun <T> NavigationTabContent(
                 },
             ),
     )
+}
+
+/** 消息角标（复用 MioTie 原 DockBadge 的尺寸与位置）。 */
+@Composable
+private fun GlassTabBadge(
+    text: String,
+    color: Color,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .height(15.dp)
+            .widthIn(min = 15.dp)
+            .clip(CircleShape)
+            .background(color),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = text,
+            maxLines = 1,
+            fontSize = 9.sp,
+            lineHeight = 10.sp,
+            color = Color.White,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 3.dp),
+        )
+    }
 }
 
 private fun Modifier.collapseVertically(fraction: Float): Modifier = layout { measurable, constraints ->
@@ -898,13 +982,17 @@ private fun <T> BoxScope.MorphingSelectedNavigationItem(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            NavigationTabContent(
-                item = item,
-                selected = true,
-                selectedColorFilter = selectedIconColorFilter,
-                selectedIconTint = contentColor,
-                labelAlpha = labelAlpha,
-            )
+            // 单选 overlay 是单例调用点：按 item.key 分组，避免自定义图标 painter 复用上一项
+            androidx.compose.runtime.key(item.key) {
+                NavigationTabContent(
+                    item = item,
+                    selected = true,
+                    iconActive = true,
+                    selectedColorFilter = selectedIconColorFilter,
+                    selectedIconTint = contentColor,
+                    labelAlpha = labelAlpha,
+                )
+            }
         }
     }
 }

@@ -3,6 +3,8 @@ package com.huanchengfly.tieba.post.ui.page.main
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.graphics.ExperimentalAnimationGraphicsApi
+import androidx.compose.animation.graphics.res.rememberAnimatedVectorPainter
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -29,6 +31,7 @@ import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.State
@@ -39,6 +42,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
@@ -46,6 +50,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
@@ -62,8 +67,6 @@ import com.huanchengfly.tieba.post.ui.glass.GlassTabItem
 import com.huanchengfly.tieba.post.ui.glass.LocalGlassAppearance
 import com.huanchengfly.tieba.post.ui.glass.LocalGlassBackdrop
 import com.huanchengfly.tieba.post.ui.glass.LocalGlassColors
-import com.huanchengfly.tieba.post.ui.glass.SfIcon
-import com.huanchengfly.tieba.post.ui.glass.SfSymbol
 import com.huanchengfly.tieba.post.ui.glass.defaultGlassColors
 import com.huanchengfly.tieba.post.ui.widgets.compose.Avatar
 import com.huanchengfly.tieba.post.ui.widgets.compose.AvatarPlaceholder
@@ -144,17 +147,13 @@ fun MainBottomBars(
             accent = accentColor,
         )
     }
-    val tabItems = ArrayList<GlassTabItem<Int>>(navigationItems.size)
+    val tabLabels = ArrayList<String>(navigationItems.size)
     var tabIndex = 0
     while (tabIndex < navigationItems.size) {
-        val item = navigationItems[tabIndex]
-        tabItems += GlassTabItem(
-            key = tabIndex,
-            label = item.title(tabIndex == currentPosition),
-            symbol = item.glassSymbol(),
-        )
+        tabLabels += navigationItems[tabIndex].title(tabIndex == currentPosition)
         tabIndex++
     }
+    val tabItems = rememberTabItems(navigationItems, currentPosition, tabLabels)
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
@@ -259,22 +258,52 @@ private fun GlassSearchButton(
         morphProgress = compactProgress,
         morphCaptureWidth = SearchHostSize,
     ) {
-        SfIcon(
-            symbol = SfSymbol.Search,
+        Icon(
+            imageVector = Icons.Rounded.Search,
             contentDescription = null,
             tint = LocalGlassColors.current.content,
-            size = 26.dp + (CompactBottomControlIconSize - 26.dp) * progress,
-            weight = FontWeight.SemiBold,
+            modifier = Modifier.size(
+                26.dp + (CompactBottomControlIconSize - 26.dp) * progress
+            ),
         )
     }
 }
 
-private fun NavigationItem.glassSymbol(): SfSymbol = when (id) {
-    "home" -> SfSymbol.House
-    "explore" -> SfSymbol.Safari
-    "notification" -> SfSymbol.BellBadge
-    "settings" -> SfSymbol.Settings
-    else -> SfSymbol.Sparkles
+@Composable
+private fun rememberTabItems(
+    items: ImmutableList<NavigationItem>,
+    currentPosition: Int,
+    labels: List<String>,
+): List<GlassTabItem<Int>> = remember(items, currentPosition, labels) {
+    items.mapIndexed { index, item ->
+        GlassTabItem(
+            key = index,
+            label = labels[index],
+            icon = { active, tint, size -> MioTieTabIcon(item, active, tint, size) },
+            contentDescription = labels[index],
+            badgeText = if (item.badge) item.badgeText ?: "" else null,
+        )
+    }
+}
+
+/** 还原 MioTie 原有的 AnimatedImageVector tab 图标。 */
+@OptIn(ExperimentalAnimationGraphicsApi::class)
+@Composable
+private fun MioTieTabIcon(
+    item: NavigationItem,
+    active: Boolean,
+    tint: Color,
+    size: Dp,
+) {
+    Icon(
+        painter = rememberAnimatedVectorPainter(
+            animatedImageVector = item.icon(),
+            atEnd = active,
+        ),
+        contentDescription = null,
+        tint = tint,
+        modifier = Modifier.size(size),
+    )
 }
 
 @Composable
