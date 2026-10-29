@@ -21,7 +21,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -51,9 +51,11 @@ import com.huanchengfly.tieba.post.ui.page.main.NavigationItem
 import com.kyant.backdrop.Backdrop
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.coroutines.CoroutineStart
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlin.math.abs
+import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sign
 
@@ -90,6 +92,12 @@ private val DockVelocitySpring = spring<Float>(dampingRatio = 0.5f, stiffness = 
 /** 白色柔光（Glasmio pressHighlightSpring = spring(0.5, 300)）。 */
 private val DockGlowSpring = spring<Float>(dampingRatio = 0.5f, stiffness = 300f, visibilityThreshold = 0.001f)
 
+/** 回收阈值占整个 range 的比例（MeiloX DampedDragAnimation.release：2.5%）。 */
+private const val DockReleaseFraction = 0.025f
+
+/** 点击脉冲的放大峰值随距离收敛的指数：<1 让近距离点击放大更少、到位更早。 */
+private const val DockBloomDistancePower = 0.6f
+
 /** 背景模糊（RenderEffect）需要 API 31+。 */
 fun supportsBackdropBlur(): Boolean = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S
 
@@ -97,11 +105,11 @@ fun supportsBackdropBlur(): Boolean = android.os.Build.VERSION.SDK_INT >= androi
  * 悬浮导航胶囊（照搬 MeiloX 关闭「液态玻璃」后的底栏）：
  *
  * - 静止：普通毛玻璃壳 + 10% 黑/白选中指示器，无折射、无描边、无外圈光晕；
- * - 按压：壳按 16dp/宽度轻微放大、指示器 bloom（78/56），选中图标/名称退成前景色；
- *   按住指示器或拖动时整条壳另有 8% 提亮 + 指示器位置 15% 柔光（MeiloX
- *   InteractiveHighlight），点按其他条目切换不点亮该柔光；壳上任意位置按下都进入
- *   同一套按压/拖动状态（对齐 Glasmio：整条胶囊都是指示器的命中区）；指示器本身
- *   不采样背景，拖动时不会出现随页面内容变化的玻璃折射；
+ * - 按压：按住当前条目或拖动时壳按 16dp/宽度放大、指示器 bloom（78/56）并叠 8% 提亮 +
+ *   15% 柔光，选中图标/名称退成前景色（对齐 MeiloX：按下的命中区就是指示器本身）；
+ *   点按其他条目时没有按下反馈，抬手切换才由点击脉冲开始 bloom，与移动同时进行——
+ *   近距离在放大到最大前就到位并立即回收，放大峰值随距离变化；
+ *   指示器本身不采样背景，拖动时不会出现随页面内容变化的玻璃折射；
  * - 拖动：超过触摸 slop 且为水平意图才开始跟手，带速度形变与 4dp rubber-band；
  * - 点击：切换后指示器以 spring(1, 1000) 落位，并在移动前先做一次按压脉冲；
  *   进入目标 2.5% 范围即回收放大（对齐 MeiloX DampedDragAnimation.release）；
@@ -165,35 +173,65 @@ fun FloatingDock(
     val velocity = remember { Animatable(0f) }
     val velocityTracker = remember { VelocityTracker() }
     val panelOffsetRaw = remember { Animatable(0f) }
-    // 点击切换时先做一次按压脉冲（MeiloX animateToValue(animatePress = true)）
-    var pulseSelection by remember { mutableStateOf(false) }
+    // 点击脉冲（对齐 MeiloX animateToValue → press() + 位置动画 + release()）：
+    // 由手势直接触发、单协程独占，不走「改选中 → 重组 → LaunchedEffect」这一跳，
+    // 脉冲不会被下一次重组打断在半途。
+    var pulseJob by remember { mutableStateOf<Job?>(null) }
 
-    // 外部选中变化（点击切换 / 返回键回首页 / 展开）→ 指示器 spring 落定
+    suspend fun runPulse(target: Float, start: Float) {
+        dragTarget = target
+        // 放大峰值按距离给出：近距到位更早、放大还没到满就开始回落；远距移动更久、放大更充分。
+        // 峰值显式算出而不只靠两个弹簧赛跑，否则掉帧时放大弹簧先跳到满格，近距离也变成满放大。
+        val travel = abs(target - start)
+        val fraction = if (lastIndex > 0) (travel / lastIndex).coerceIn(0f, 1f) else 1f
+        val peak = 1f + (DockIndicatorPressScale - 1f) * fraction.pow(DockBloomDistancePower)
+        coroutineScope {
+            // press()：放大与位移同时开始（对齐 MeiloX animateToValue 的 press + 位置动画）。
+            launch { pressProgress.animateTo(1f, DockPressSpring) }
+            launch { indicatorScaleX.animateTo(peak, DockScaleXSpring) }
+            launch { indicatorScaleY.animateTo(peak, DockScaleYSpring) }
+            launch { dragPosition.animateTo(target, DockItemSpring) }
+
+            // release()：照搬 MeiloX DampedDragAnimation.release 的时机——先让出一帧，
+            // 位置进入 range 的 2.5% 才回收，回弹整体走完 0.6/0.7 × 250 的弹簧。
+            // 唯一偏离的是初速度：MeiloX 回收那一刻放大仍在上升（正向动量），继承速度后
+            // 先顺势头收尾再落下；这里点击会触发整页切换、主线程停帧近 200ms，等到位时
+            // 放大早已越过峰值转为下降，继承下来是很大的负速度，回弹被压成两帧就没了。
+            // 所以以零初速度起算，让回弹拿到与 MeiloX 相同的时长（峰值→静止约 180ms）。
+            withFrameNanos { }
+            if (dragPosition.value != target) {
+                val threshold = lastIndex.coerceAtLeast(1) * DockReleaseFraction
+                while (abs(dragPosition.value - target) >= threshold) {
+                    withFrameNanos { }
+                }
+            }
+            launch { indicatorScaleX.animateTo(1f, DockScaleXSpring, 0f) }
+            launch { indicatorScaleY.animateTo(1f, DockScaleYSpring, 0f) }
+            pressProgress.animateTo(0f, DockPressSpring)
+        }
+    }
+
+    val runPulseLatest = rememberUpdatedState<(Float) -> Unit>({ target ->
+        val start = dragPosition.value
+        pulseJob?.cancel()
+        // UNDISPATCHED：点击会触发整页切换，主线程随后被重组占住上百毫秒；
+        // 若在这里排队等调度，脉冲的第一帧会被推迟到停帧之后，弹簧一次性跳完，
+        // 看起来就是「瞬间到满格又开始消失」。
+        pulseJob = scope.launch(start = CoroutineStart.UNDISPATCHED) { runPulse(target, start) }
+    })
+
+    // 外部选中变化（返回键回首页 / 展开 / 路由恢复）→ 指示器 spring 落定；
+    // 点击切换由脉冲自己接管位置，这里不能重复 animateTo，否则会打断脉冲。
     LaunchedEffect(currentPosition, lastIndex) {
         val target = currentPosition.coerceIn(0, lastIndex).toFloat()
         if (isDragging) {
             dragTarget = target
             return@LaunchedEffect
         }
-        if (dragPosition.value == target && !pulseSelection) return@LaunchedEffect
+        if (dragPosition.value == target) return@LaunchedEffect
+        if (pulseJob?.isActive == true) return@LaunchedEffect
         dragTarget = target
-        if (pulseSelection && !compacted) {
-            pulseSelection = false
-            launch { pressProgress.animateTo(1f, DockPressSpring) }
-            launch { indicatorScaleX.animateTo(DockIndicatorPressScale, DockScaleXSpring) }
-            launch { indicatorScaleY.animateTo(DockIndicatorPressScale, DockScaleYSpring) }
-            launch { dragPosition.animateTo(target, DockItemSpring) }
-            // 对齐 MeiloX DampedDragAnimation.release()：进入目标 2.5% 范围就回收放大，
-            // 不等 spring 完全落定，否则指示器会在目标位置多保持放大一百多毫秒。
-            val releaseThreshold = lastIndex.coerceAtLeast(1) * 0.025f
-            snapshotFlow { dragPosition.value }
-                .first { abs(it - target) < releaseThreshold }
-            launch { indicatorScaleX.animateTo(1f, DockScaleXSpring) }
-            launch { indicatorScaleY.animateTo(1f, DockScaleYSpring) }
-            pressProgress.animateTo(0f, DockPressSpring)
-        } else {
-            dragPosition.animateTo(target, DockItemSpring)
-        }
+        dragPosition.animateTo(target, DockItemSpring)
     }
 
     val surfaceTint = glassDockTint(themeColors.isNightMode, blurSupported)
@@ -329,9 +367,9 @@ fun FloatingDock(
         }
 
         // 手势层（对齐 MeiloX）：
-        // - 按下任意位置：壳放大 + 透镜 bloom；按住的是选中条目时再加白色柔光，
-        //   超过触摸 slop 后水平拖动（柔光常亮），松手按落点弹簧落定并切换；
-        //   未移动则视为点击（再次点击当前项刷新），点按其他条目只有 bloom、无柔光；
+        // - 按住选中条目：立刻放大 + 柔光；超过触摸 slop 后水平拖动，松手按落点落定并切换；
+        // - 按住其他条目：无按下反馈，拖动开始后才放大；未移动则抬手点击，
+        //   由点击脉冲「边放大边移动」，近距离到位即回收；
         // - 下沉态：整颗圆钮即「展开」热区，先对齐指示器再展开。
         Box(
             modifier = Modifier
@@ -365,20 +403,20 @@ fun FloatingDock(
                             return@awaitEachGesture
                         }
 
-                        // 整条胶囊都是指示器命中区（对齐 Glasmio indicatorHitBoundsModifier）：
-                        // 任意位置按下都进入同一套按压/拖动状态。
-                        scope.launch { pressProgress.animateTo(1f, DockPressSpring) }
-                        scope.launch {
-                            indicatorScaleX.animateTo(DockIndicatorPressScale, DockScaleXSpring)
-                        }
-                        scope.launch {
-                            indicatorScaleY.animateTo(DockIndicatorPressScale, DockScaleYSpring)
-                        }
-                        // 白色柔光属于「按住指示器」的交互（MeiloX InteractiveHighlight 挂在指示器命中区上），
-                        // 点按其他条目切换时只做指示器 bloom，不点亮整壳柔光
-                        if (slotAt(down.position.x, innerPaddingPx, itemWidthPx, stepPx, itemCount) ==
-                            currentPositionLatest.value
-                        ) {
+                        // MeiloX：只有按住当前选中条目（指示器命中区）才在按下时开始放大；
+                        // 点按其他条目没有任何按压反馈，抬手切换时才由点击脉冲开始 bloom，
+                        // 这样近距离点击会「边放大边移动」，到位时放大未完成就立即回收。
+                        val downOnSelected = slotAt(
+                            down.position.x, innerPaddingPx, itemWidthPx, stepPx, itemCount
+                        ) == currentPositionLatest.value
+                        if (downOnSelected) {
+                            scope.launch { pressProgress.animateTo(1f, DockPressSpring) }
+                            scope.launch {
+                                indicatorScaleX.animateTo(DockIndicatorPressScale, DockScaleXSpring)
+                            }
+                            scope.launch {
+                                indicatorScaleY.animateTo(DockIndicatorPressScale, DockScaleYSpring)
+                            }
                             scope.launch { highlightProgress.animateTo(1f, DockGlowSpring) }
                         }
 
@@ -414,6 +452,13 @@ fun FloatingDock(
                                     if (dragging) {
                                         isDragging = true
                                         velocityTracker.resetTracking()
+                                        scope.launch { pressProgress.animateTo(1f, DockPressSpring) }
+                                        scope.launch {
+                                            indicatorScaleX.animateTo(DockIndicatorPressScale, DockScaleXSpring)
+                                        }
+                                        scope.launch {
+                                            indicatorScaleY.animateTo(DockIndicatorPressScale, DockScaleYSpring)
+                                        }
                                         scope.launch {
                                             highlightProgress.animateTo(1f, DockGlowSpring)
                                         }
@@ -448,9 +493,17 @@ fun FloatingDock(
                             }
                         }
 
-                        scope.launch { pressProgress.animateTo(0f, DockPressSpring) }
-                        scope.launch { indicatorScaleX.animateTo(1f, DockScaleXSpring) }
-                        scope.launch { indicatorScaleY.animateTo(1f, DockScaleYSpring) }
+                        // 抬手统一收按压状态。点击切换的路径不在这里复位放大：
+                        // 脉冲自己的 release() 要在「到位」之后才回收，这里的 animateTo(1f)
+                        // 会抢走同一个 Animatable，把脉冲的放大与回弹都提前掐断。
+                        val tapsToOther = !dragging && !moved && !cancelled &&
+                            slotAt(upX, innerPaddingPx, itemWidthPx, stepPx, itemCount) !=
+                            currentPositionLatest.value
+                        if (!tapsToOther) {
+                            scope.launch { pressProgress.animateTo(0f, DockPressSpring) }
+                            scope.launch { indicatorScaleX.animateTo(1f, DockScaleXSpring) }
+                            scope.launch { indicatorScaleY.animateTo(1f, DockScaleYSpring) }
+                        }
                         scope.launch { highlightProgress.animateTo(0f, DockGlowSpring) }
 
                         if (!dragging) {
@@ -459,7 +512,7 @@ fun FloatingDock(
                                 if (index == currentPositionLatest.value) {
                                     onReselectedLatest.value(index)
                                 } else {
-                                    pulseSelection = true
+                                    runPulseLatest.value(index.toFloat())
                                     onChangePositionLatest.value(index)
                                 }
                                 navigationItemsLatest.value[index].onClick?.invoke()
