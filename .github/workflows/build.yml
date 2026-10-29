@@ -75,6 +75,8 @@ jobs:
         uses: softprops/action-gh-release@v3
         if: startsWith(github.ref, 'refs/tags/')
         with:
+          # 标签带 -beta / -alpha / -rc 时自动标记为预发布，不抢占 latest
+          prerelease: ${{ contains(github.ref_name, '-') }}
           files: ./app/build/outputs/apk/release/*.apk
 
       - name: Upload Mapping to public
