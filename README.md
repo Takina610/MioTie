@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/images/logo.png?v=1.1.0" width="128" alt="MioTie Logo" />
+  <img src="docs/images/logo.png?v=1.1.1" width="128" alt="MioTie Logo" />
 </p>
 
 <h1 align="center">MioTie</h1>
