@@ -61,6 +61,7 @@ import com.huanchengfly.tieba.post.ui.common.theme.compose.ExtendedTheme
 import com.huanchengfly.tieba.post.ui.glass.CompactBottomControlIconSize
 import com.huanchengfly.tieba.post.ui.glass.GlassBottomBar
 import com.huanchengfly.tieba.post.ui.glass.GlassIconButton
+import com.huanchengfly.tieba.post.ui.glass.GlassSurface
 import com.huanchengfly.tieba.post.ui.glass.GlassSurfaceStyle
 import com.huanchengfly.tieba.post.ui.glass.GlassTabItem
 import com.huanchengfly.tieba.post.ui.glass.LocalGlassBackdrop
@@ -70,11 +71,9 @@ import com.huanchengfly.tieba.post.ui.glass.SfSymbol
 import com.huanchengfly.tieba.post.ui.glass.defaultGlassColors
 import com.huanchengfly.tieba.post.ui.widgets.compose.Avatar
 import com.huanchengfly.tieba.post.ui.widgets.compose.AvatarPlaceholder
-import com.huanchengfly.tieba.post.ui.widgets.compose.GlassCapsule
-import com.huanchengfly.tieba.post.ui.widgets.compose.glassDockTint
-import com.huanchengfly.tieba.post.ui.widgets.compose.supportsBackdropBlur
 import com.huanchengfly.tieba.post.utils.StringUtil
 import com.kyant.backdrop.Backdrop
+import com.kyant.shapes.Capsule
 import kotlinx.collections.immutable.ImmutableList
 
 /** 导航胶囊高度（对齐 MeiloX 1.55.1 NavigationBarSurfaceHeight = 64dp）。 */
@@ -173,16 +172,15 @@ fun MainBottomBars(
         // 进度只在 measure/place 阶段读取，弹簧每一帧只触发重新测量，不重组整条底栏。
         Layout(
             content = {
-                UserInfoBar(
-                    account = account,
-                    backdrop = backdrop,
-                    themeColors = themeColors,
-                    onClick = onUserClick,
-                )
                 CompositionLocalProvider(
                     LocalGlassColors provides glassColors,
                     LocalGlassBackdrop provides backdrop,
                 ) {
+                    UserInfoBar(
+                        account = account,
+                        backdrop = backdrop,
+                        onClick = onUserClick,
+                    )
                     GlassBottomBar(
                         items = tabItems,
                         selectedKey = currentPosition,
@@ -326,29 +324,24 @@ private fun MioTieTabIcon(
 private fun UserInfoBar(
     account: Account?,
     backdrop: Backdrop,
-    themeColors: ExtendedColors,
     onClick: () -> Unit,
 ) {
-    val blurSupported = supportsBackdropBlur()
-    val tint = glassDockTint(themeColors.isNightMode, blurSupported)
     var pressed by remember { mutableStateOf(false) }
     val press by animateFloatAsState(
         targetValue = if (pressed) 1f else 0f,
         animationSpec = spring(dampingRatio = 1f, stiffness = 900f),
         label = "UserInfoBarPress",
     )
-    GlassCapsule(
+    GlassSurface(
         modifier = Modifier
             .fillMaxSize()
             .graphicsLayer {
                 scaleX = 1f + 0.015f * press
                 scaleY = 1f + 0.05f * press
             },
-        shape = CircleShape,
         backdrop = backdrop,
-        tint = tint,
-        isNightMode = themeColors.isNightMode,
-        blurSupported = blurSupported,
+        shape = Capsule(),
+        style = GlassSurfaceStyle.Navigation,
     ) {
         UserInfoContent(
             account = account,
