@@ -1,25 +1,13 @@
 package com.huanchengfly.tieba.post.ui.page.login
 
 import android.annotation.SuppressLint
-import android.webkit.CookieManager
-import android.webkit.WebView
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.DropdownMenuItem
-import androidx.compose.material.Icon
 import androidx.compose.material.LinearProgressIndicator
-import androidx.compose.material.MaterialTheme
-import androidx.compose.material.SnackbarDuration
-import androidx.compose.material.SnackbarHostState
 import androidx.compose.material.Text
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.derivedStateOf
@@ -30,27 +18,25 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import com.huanchengfly.tieba.post.R
-import com.huanchengfly.tieba.post.api.retrofit.exception.getErrorMessage
-import com.huanchengfly.tieba.post.ui.common.theme.compose.ExtendedTheme
-import com.huanchengfly.tieba.post.ui.page.settings.IosTopBarScaffold
+import com.huanchengfly.tieba.post.ui.glass.GlassIconButton
+import com.huanchengfly.tieba.post.ui.glass.IosMenuItem
+import com.huanchengfly.tieba.post.ui.glass.IosPopMenuButton
 import com.huanchengfly.tieba.post.ui.glass.LocalGlassColors
 import com.huanchengfly.tieba.post.ui.glass.SfIcon
+import com.huanchengfly.tieba.post.ui.page.settings.IosTopBarScaffold
 import com.huanchengfly.tieba.post.ui.page.webview.MyWebChromeClient
 import com.huanchengfly.tieba.post.ui.page.webview.MyWebViewClient
 import com.huanchengfly.tieba.post.ui.page.webview.isInternalHost
-import com.huanchengfly.tieba.post.ui.widgets.compose.ClickMenu
 import com.huanchengfly.tieba.post.ui.widgets.compose.LazyLoad
 import com.huanchengfly.tieba.post.ui.widgets.compose.LoadingState
 import com.huanchengfly.tieba.post.ui.widgets.compose.LocalSnackbarHostState
 import com.huanchengfly.tieba.post.ui.widgets.compose.WebView
-import com.huanchengfly.tieba.post.ui.widgets.compose.rememberMenuState
 import com.huanchengfly.tieba.post.ui.widgets.compose.rememberSaveableWebViewState
 import com.huanchengfly.tieba.post.ui.widgets.compose.rememberWebViewNavigator
 import com.huanchengfly.tieba.post.utils.AccountUtil
@@ -154,32 +140,28 @@ fun LoginPage(
         sampleContentBackdrop = false,
         onNavigateBack = { navigator.navigateUp() },
         actions = {
-            val menuState = rememberMenuState()
-            ClickMenu(
-                menuContent = {
-                    DropdownMenuItem(
-                        onClick = {
-                            webViewNavigator.reload()
-                            dismiss()
-                        }
-                    ) {
-                        Text(text = stringResource(id = R.string.title_refresh))
+            // 顶栏行尾按 MeiloX 的做法：玻璃圆钮做锚点，菜单是本项目的 IosPopMenuButton
+            IosPopMenuButton(
+                itemCount = 1,
+                anchor = { openMenu ->
+                    GlassIconButton(onClick = openMenu) {
+                        SfIcon(
+                            "ellipsis",
+                            stringResource(id = R.string.btn_more),
+                            size = 20.dp,
+                            tint = LocalGlassColors.current.content,
+                        )
                     }
                 },
-                menuState = menuState,
-                triggerShape = CircleShape
-            ) {
-                Box(
-                    modifier = Modifier.size(44.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    SfIcon(
-                        "ellipsis",
-                        stringResource(id = R.string.btn_more),
-                        size = 20.dp,
-                        tint = LocalGlassColors.current.content,
-                    )
-                }
+            ) { childBackdrop, close ->
+                IosMenuItem(
+                    title = stringResource(id = R.string.title_refresh),
+                    onClick = {
+                        webViewNavigator.reload()
+                        close()
+                    },
+                    backdrop = childBackdrop,
+                )
             }
         },
     ) { paddingValues ->

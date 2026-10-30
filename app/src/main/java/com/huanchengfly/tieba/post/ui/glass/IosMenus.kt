@@ -143,6 +143,8 @@ private class IosPopupPositionProvider(
         } else {
             anchorOvershootVerticalPx
         }
+        // 菜单顶边与锚点顶边齐平（空间不足时才上翻），这是 iOS 菜单与按钮的贴合方式；
+        // 若改成贴着锚点底边，菜单会整块掉到按钮下方。
         val requestedTop = if (resolvedDirection) {
             anchorBounds.bottom - targetMenuHeightPx
         } else {
@@ -155,9 +157,37 @@ private class IosPopupPositionProvider(
 }
 
 /**
+ * iOS 弹出按钮（对齐 Glasmio `GlasmioMenu` 紧凑路径）：
+ * 调用方决定锚点的外观与手势，点开后按 [itemCount] 行展开 RegularMedium 玻璃菜单；
+ * 打开时锚点随 menuAlpha 淡出，菜单从锚点角落 0.2→1 弹簧展开，关闭时收回后再移除。
+ *
+ * 菜单顶边与锚点顶边齐平（与设置页「主题模式」同一个组件、同一套行为），
+ * 空间不足时才上翻；顶栏的「更多」与行尾下拉都走这里。
+ */
+@Composable
+fun IosPopMenuButton(
+    itemCount: Int,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    backdrop: Backdrop = LocalGlassBackdrop.current,
+    anchor: @Composable (openMenu: () -> Unit) -> Unit,
+    content: @Composable ColumnScope.(childBackdrop: LayerBackdrop, close: () -> Unit) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    IosDropdownMenu(
+        expanded = expanded,
+        onExpandedChange = { if (enabled || !it) expanded = it },
+        itemCount = itemCount,
+        modifier = modifier,
+        backdrop = backdrop,
+        anchor = anchor,
+        content = content,
+    )
+}
+
+/**
  * 行尾下拉按钮（逐行照搬 Glasmio `GlasmioPopUpButton` + `GlasmioMenu` 紧凑路径）：
- * 强调色文字 + chevron 作为锚点，打开时锚点随 menuAlpha 淡出；菜单是 RegularMedium 玻璃材质，
- * 从锚点角落 0.2→1 弹簧展开，关闭时收回后再移除。
+ * 强调色文字 + chevron 作为锚点，选项带勾选态。
  */
 @Composable
 fun <T> IosPopUpButton(
@@ -170,12 +200,10 @@ fun <T> IosPopUpButton(
     backdrop: Backdrop = LocalGlassBackdrop.current,
 ) {
     val colors = LocalGlassColors.current
-    var expanded by remember { mutableStateOf(false) }
-    IosDropdownMenu(
-        expanded = expanded,
-        onExpandedChange = { if (enabled || !it) expanded = it },
+    IosPopMenuButton(
         itemCount = items.size,
         modifier = modifier,
+        enabled = enabled,
         backdrop = backdrop,
         anchor = { openMenu ->
             Row(
@@ -458,7 +486,7 @@ private fun IosContextMenu(
 
 /** 菜单行：固定 20dp 勾选槽保证标题对齐；按下是 15% 黑胶囊高亮。 */
 @Composable
-private fun IosMenuItem(
+fun IosMenuItem(
     title: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
