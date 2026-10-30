@@ -19,10 +19,6 @@
 > [!WARNING]
 > 本项目仅供学习交流，不用于商业用途；它不是百度或贴吧的官方客户端，相关商标与内容权利归其权利人所有。
 
-<p align="center">
-  <img src="docs/images/showcase_hero.png?v=1.1.0" alt="MioTie 主视觉" />
-</p>
-
 ## 项目简介
 
 MioTie fork 自 [makise2060/FluxTie](https://github.com/makise2060/FluxTie)，上游项目源自 [HuanCheng65/TiebaLite](https://github.com/HuanCheng65/TiebaLite) 并基于 [zzc10086/TiebaLite](https://github.com/zzc10086/TiebaLite) 的 4.0-dev 分支进行了深度重构。项目保留贴吧客户端的核心能力，同时以 Jetpack Compose、MaterialKolor 与现代 Android 工具链重新打磨浏览、主题、动效和更新体验。
@@ -34,10 +30,6 @@ MioTie fork 自 [makise2060/FluxTie](https://github.com/makise2060/FluxTie)，�
 
 ## 核心特性
 
-<p align="center">
-  <img src="docs/images/feature_showcase.png?v=1.1.0" alt="MioTie 核心特性" />
-</p>
-
 - **双阶段流体启动**：系统启动屏与 Compose 启动覆盖层衔接，双水滴、贴字与星石构成完整启动动效。
 - **官方贴字新标**：参考贴吧 12.0 MEUX 字形重构“贴”字图标，并同步替换应用内主要图标资源。
 - **MaterialKolor 种子配色**：14 个预置种子色、自定义取色、9 种配色风格、浅色/深色/AMOLED 纯黑与 Android 12+ 系统取色。
@@ -45,22 +37,6 @@ MioTie fork 自 [makise2060/FluxTie](https://github.com/makise2060/FluxTie)，�
 - **个人表情包**：收藏与 DIY 表情支持云端同步，可在编辑器、帖子和评论中直接渲染。
 - **应用内更新**：检查、更新日志、下载进度、取消、系统安装与“忽略当前版本”一站式完成。
 - **现代图片链路**：以 Sketch 为主要图片加载框架，大图预览使用 ZoomImage，并保留缩略图占位与加载状态反馈。
-
-## 界面预览
-
-<div align="center">
-
-| 启动屏 | 动态流 | 帖子页 |
-| :---: | :---: | :---: |
-| <img src="docs/images/preview_splash.png?v=1.1.0" width="240" alt="启动屏" /> | <img src="docs/images/preview_explore.png?v=1.1.0" width="240" alt="动态流" /> | <img src="docs/images/preview_thread.png?v=1.1.0" width="240" alt="帖子页" /> |
-| **吧页信息流** | **外观设置** | **设置主页** |
-| <img src="docs/images/preview_forum.png?v=1.1.0" width="240" alt="吧页信息流" /> | <img src="docs/images/preview_appearance.png?v=1.1.0" width="240" alt="外观设置" /> | <img src="docs/images/preview_settings.png?v=1.1.0" width="240" alt="设置主页" /> |
-
-</div>
-
-<p align="center">
-  <img src="docs/images/bento_grid_showcase.png?v=1.1.0" alt="MioTie 设计看板" />
-</p>
 
 ## 相对原版的升级
 
@@ -78,15 +54,6 @@ MioTie fork 自 [makise2060/FluxTie](https://github.com/makise2060/FluxTie)，�
 | 应用共存 | <code>com.huanchengfly.tieba.post</code> | <code>com.takina.miotie</code>，可与原版、官方客户端及 FluxTie 共存 |
 
 签到、多账号、发帖回帖、收藏、屏蔽、浏览记录、内置日志查看器等上游能力继续保留，并在新界面中逐步统一交互与视觉。
-
-## 下载与安装
-
-1. 在 [Releases](https://github.com/Takina610/MioTie/releases) 下载最新 APK。
-2. 最低支持 **Android 6.0（API 23）**。
-3. v1.0.3 起发布签名已统一，后续版本可正常覆盖升级；**v1.0.2 及更早版本升级前需先卸载**。
-4. MioTie（包名 <code>com.takina.miotie</code>）与官方贴吧、原版 TiebaLite 及 FluxTie 均不同，可直接共存安装。
-
-CI 会基于 <code>v*</code> tag 自动构建 APK 并上传 Release；Release 正文与截图以发布页为准。
 
 ## 构建
 
@@ -136,14 +103,6 @@ release 构建只接受 <code>keystore.properties</code> 中配置的正式签�
 - 请勿将本项目用于冒充官方客户端、抓取滥用、骚扰他人或其他违反服务条款与法律法规的用途。
 - 源码按 GPL-3.0 发布；使用、修改与分发时仍需遵守上游协议、第三方资源许可及本项目的学习交流声明。
 
-## Linux.do 致谢
-
-<p align="center">
-  <img src="docs/images/linuxdo_thanks.png?v=1.1.0" alt="感谢 Linux.do 社区" />
-</p>
-
-MioTie 的开发与迭代离不开 [Linux.do](https://linux.do/) 社区。感谢分享搞机经验、讨论设计方向、试用开发版并反馈问题的每一位朋友；你们的真诚、友善、团结与专业，让这个项目得以持续完善。
-
 ## 致谢
 
 - [makise2060/FluxTie](https://github.com/makise2060/FluxTie)：直接上游项目，贡献了 Material 3 体系、Jetpack Compose 架构重构、MaterialKolor 种子配色、流体启动与悬浮底栏等核心特性。
@@ -151,6 +110,8 @@ MioTie 的开发与迭代离不开 [Linux.do](https://linux.do/) 社区。感谢
 - [zzc10086/TiebaLite](https://github.com/zzc10086/TiebaLite)：上游所基于的 4.0-dev 分支。
 - [Lingyan000/fluxdo](https://github.com/Lingyan000/fluxdo)：外观与界面设计参考。
 - [appshubcc/Bettbox](https://github.com/appshubcc/Bettbox)：设置页与底栏交互设计参考。
+- **MeiloX**：iOS 风格的布局、转场与排版参考，首页顶栏、设置页 iOS Lists 布局、玻璃搜索工具栏与底部玻璃导航均对齐其实现。
+- **Glasmio**：液态玻璃控件的移植来源，弹窗、Action Sheet、分段控件、开关、滑块与取色器均按其结构逐行移植。
 - [aiotieba](https://github.com/Starry-OvO/aiotieba) 与 [tbclient.protobuf](https://github.com/n0099/tbclient.protobuf)：贴吧协议研究参考。
 
 ## License

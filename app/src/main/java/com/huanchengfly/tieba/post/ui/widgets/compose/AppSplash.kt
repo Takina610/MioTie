@@ -218,7 +218,9 @@ fun AppSplashOverlay() {
     }
 
     if (bgAlpha > 0.01f) {
-        val splashBg = colorResource(id = R.color.colorSplashBg)
+        // 启动屏明暗跟随应用内主题（ThemeUtil 深色偏好），不能用 colorResource(colorSplashBg)：
+        // 后者只按系统 uiMode 切换，应用内单独设为深色而系统为浅色时会被解析成白色。
+        val splashBg = ExtendedTheme.colors.windowBackground
         Box(
             modifier = Modifier
                 .fillMaxSize()
