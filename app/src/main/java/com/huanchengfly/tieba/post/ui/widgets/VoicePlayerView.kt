@@ -147,12 +147,46 @@ class VoicePlayerView @JvmOverloads constructor(
         if (isInEditMode) {
             return
         }
-        if (timer != null) {
-            timer!!.cancel()
-            timer = null
-        }
-        timer = Timer()
+        stopProgressTimer()
         player = Player(this)
+    }
+
+    /**
+     * 时间文本只需要在播放时刷新。原先每个 VoicePlayerView 构造时就创建一个 Timer 线程，
+     * 列表里几十个语音控件会各自占一条线程，且离开列表后也不会回收。
+     */
+    private fun startProgressTimer() {
+        stopProgressTimer()
+        timer = Timer().apply {
+            schedule(object : TimerTask() {
+                override fun run() {
+                    if (!completed) {
+                        Companion.handler.post {
+                            if (isAttachedToWindow) {
+                                setText(calculateTime((player?.currentPosition ?: 0) / 1000))
+                            }
+                        }
+                    }
+                }
+            }, 0, 50)
+        }
+    }
+
+    private fun stopProgressTimer() {
+        timer?.cancel()
+        timer = null
+    }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        if (hasPrepared && !completed && player?.isPlaying == true) {
+            startProgressTimer()
+        }
+    }
+
+    override fun onDetachedFromWindow() {
+        stopProgressTimer()
+        super.onDetachedFromWindow()
     }
 
     fun setText(text: String?) {
@@ -202,11 +236,7 @@ class VoicePlayerView @JvmOverloads constructor(
         completed = false
         setState(STATE_PAUSING)
         animationView.visibility = GONE
-        if (timer != null) {
-            timer!!.cancel()
-            timer = null
-        }
-        timer = Timer()
+        stopProgressTimer()
     }
 
     fun startPlay() {
@@ -244,6 +274,7 @@ class VoicePlayerView @JvmOverloads constructor(
         if (url == null) {
             throw NullPointerException("Url is null.")
         }
+        stopProgressTimer()
         Player.notifyReset()
         try {
             player!!.reset()
@@ -269,10 +300,7 @@ class VoicePlayerView @JvmOverloads constructor(
     }
 
     fun release() {
-        if (timer != null) {
-            timer!!.cancel()
-            timer = null
-        }
+        stopProgressTimer()
         if (player != null) {
             player!!.release()
             player = null
@@ -307,6 +335,7 @@ class VoicePlayerView @JvmOverloads constructor(
             }
             player!!.start()
             setState(STATE_PLAYING)
+            startProgressTimer()
         }
     }
 
@@ -317,6 +346,7 @@ class VoicePlayerView @JvmOverloads constructor(
         if (player != null && hasPrepared && player!!.isPlaying) {
             player!!.pause()
             setState(STATE_PAUSING)
+            stopProgressTimer()
         }
     }
 
@@ -328,18 +358,12 @@ class VoicePlayerView @JvmOverloads constructor(
             play()
             setState(STATE_PLAYING)
             setText(calculateTime(duration / 1000))
-            timer!!.schedule(object : TimerTask() {
-                override fun run() {
-                    if (!completed) {
-                        Companion.handler.post {
-                            setText(calculateTime((player?.currentPosition ?: 0) / 1000))
-                        }
-                    }
-                }
-            }, 0, 50)
+            startProgressTimer()
         } else if (playbackState == androidx.media3.common.Player.STATE_ENDED) {
-            setState(STATE_PAUSING)
             completed = true
+            stopProgressTimer()
+            setState(STATE_PAUSING)
+            setText(calculateTime(duration / 1000))
         }
     }
 

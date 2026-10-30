@@ -181,6 +181,7 @@ fun rememberBottomSheetNavigator(
 class MainActivityV2 : BaseComposeActivity() {
     private val handler = Handler(Looper.getMainLooper())
     private val newMessageReceiver: BroadcastReceiver = NewMessageReceiver()
+    private var newMessageReceiverRegistered = false
 
     @Inject
     lateinit var updateManager: UpdateManager
@@ -345,13 +346,18 @@ class MainActivityV2 : BaseComposeActivity() {
     override fun onStart() {
         super.onStart()
         runCatching {
-            ContextCompat.registerReceiver(
-                this,
-                newMessageReceiver,
-                newIntentFilter(NotifyJobService.ACTION_NEW_MESSAGE),
-                ContextCompat.RECEIVER_NOT_EXPORTED
-            )
-            startService(Intent(this, NotifyJobService::class.java))
+            if (!newMessageReceiverRegistered) {
+                ContextCompat.registerReceiver(
+                    this,
+                    newMessageReceiver,
+                    newIntentFilter(NotifyJobService.ACTION_NEW_MESSAGE),
+                    ContextCompat.RECEIVER_NOT_EXPORTED
+                )
+                newMessageReceiverRegistered = true
+            }
+            // NotifyJobService 是 JobService，只应由 JobScheduler 触发；
+            // startService 启动后没有任何 onStartCommand/stopSelf 逻辑，
+            // 只会让一个空服务常驻并拖住进程。周期任务在下面照常调度。
             val builder = JobInfo.Builder(
                 JobServiceUtil.getJobId(this),
                 ComponentName(this, NotifyJobService::class.java)
@@ -401,6 +407,14 @@ class MainActivityV2 : BaseComposeActivity() {
         super.onCreateContent(systemUiController)
         fetchAccount()
         initAutoSign()
+    }
+
+    override fun onDestroy() {
+        if (newMessageReceiverRegistered) {
+            runCatching { unregisterReceiver(newMessageReceiver) }
+            newMessageReceiverRegistered = false
+        }
+        super.onDestroy()
     }
 
     private fun openClipBoardLink(link: ClipBoardLink) {

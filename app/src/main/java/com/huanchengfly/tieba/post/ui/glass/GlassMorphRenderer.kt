@@ -83,6 +83,11 @@ internal class GlassMorphRenderer(
     private val appearance: GlassAppearance,
 ) {
     private val shader = if (appearance.usesRefraction) RuntimeShader(TransitionRefractionShader) else null
+    // RenderEffect 只是包装同一个 RuntimeShader；uniform 在绘制前更新即可，
+    // 没必要在每一帧都重新创建（液态玻璃形变期间每帧都会走到这里）。
+    private val refractedEffect = shader?.let {
+        RenderEffect.createRuntimeShaderEffect(it, "content").asComposeRenderEffect()
+    }
     private val highlight = RuntimeShader(TransitionHighlightShader)
     private val highlightBrush = ShaderBrush(highlight)
     private var recordedViewport: Rect? = null
@@ -160,7 +165,7 @@ internal class GlassMorphRenderer(
             refracted.record(bufferSize) { drawLayer(source) }
             recordedViewport = viewport
         }
-        refracted.renderEffect = if (shader != null) {
+        if (shader != null) {
             val sampleBounds = Rect(
                 sourceOffset.x + bounds.left * sampleScale.x,
                 sourceOffset.y + bounds.top * sampleScale.y,
@@ -172,8 +177,8 @@ internal class GlassMorphRenderer(
             shader.setFloatUniform("radius", radius * minOf(sampleScale.x, sampleScale.y) * renderScale)
             shader.setFloatUniform("height", refractionHeight.toPx() * renderScale)
             shader.setFloatUniform("amount", -refractionAmount.toPx() * renderScale)
-            RenderEffect.createRuntimeShaderEffect(shader, "content").asComposeRenderEffect()
-        } else null
+        }
+        refracted.renderEffect = refractedEffect
 
         if (navigationOutline) {
             val sideExpansion = 1.4.dp.toPx()

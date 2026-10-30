@@ -101,7 +101,7 @@ internal class DefaultVideoPlayerController(
 
                 updateDurationAndPositionJob?.cancel()
                 updateDurationAndPositionJob = coroutineScope.launch {
-                    while (this.isActive) {
+                    while (this.isActive && !released.get()) {
                         updateDurationAndPosition()
                         delay(250)
                     }
@@ -302,13 +302,16 @@ internal class DefaultVideoPlayerController(
     }
 
     private fun updateDurationAndPosition() {
-        if (exoPlayer.playbackState == STATE_READY || exoPlayer.playbackState == STATE_ENDED) {
+        // 不能走 exoPlayer 懒加载：release() 之后再访问会重新创建播放器并永久泄露。
+        val player = _exoPlayer ?: return
+        if (released.get()) return
+        if (player.playbackState == STATE_READY || player.playbackState == STATE_ENDED) {
             _state.set {
                 copy(
-                    duration = exoPlayer.duration.coerceAtLeast(0),
-                    currentPosition = exoPlayer.currentPosition.coerceAtLeast(0),
-                    secondaryProgress = exoPlayer.bufferedPosition.coerceAtLeast(0),
-                    isPlaying = exoPlayer.isPlaying
+                    duration = player.duration.coerceAtLeast(0),
+                    currentPosition = player.currentPosition.coerceAtLeast(0),
+                    secondaryProgress = player.bufferedPosition.coerceAtLeast(0),
+                    isPlaying = player.isPlaying
                 )
             }
         }
@@ -377,6 +380,12 @@ internal class DefaultVideoPlayerController(
     override fun release() {
         Log.i("VideoPlayerController", "$this is release. is released $released")
         if (released.compareAndSet(false, true)) {
+            // 这两个轮询协程原本会活到作用域结束：释放后仍每 250ms 读一次播放器，
+            // 并通过懒加载 getter 把已释放的 ExoPlayer 重新建出来。
+            updateDurationAndPositionJob?.cancel()
+            updateDurationAndPositionJob = null
+            autoHideControllerJob?.cancel()
+            autoHideControllerJob = null
             exoPlayer.release()
             previewExoPlayer.release()
             _exoPlayer = null

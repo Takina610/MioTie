@@ -71,6 +71,9 @@ half4 main(float2 coord) {
             null
         }
 
+    // 每帧复用同一个 ShaderBrush，避免按压/拖动时持续产生 GC 垃圾。
+    private val shaderBrush = shader?.let { ShaderBrush(it.asComposeShader()) }
+
     fun highlightPosition(size: Size): Offset = position(size, positionAnimation.value)
 
     fun highlightModifier(
@@ -96,7 +99,7 @@ half4 main(float2 coord) {
                         )
                     }
                     drawRect(
-                        ShaderBrush(shader.asComposeShader()),
+                        shaderBrush!!,
                         blendMode = BlendMode.Plus
                     )
                 } else {

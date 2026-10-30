@@ -37,6 +37,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInWindow
@@ -249,7 +250,9 @@ fun NetworkImage(
 
     var layoutSize by remember { mutableStateOf(IntSize.Zero) }
 
-    var layoutOffset by remember { mutableStateOf(Offset.Zero) }
+    // 只保留坐标对象本身：LayoutCoordinates 会随滚动实时更新，若把 positionInWindow()
+    // 的结果写进 State，信息流里的每张图片都会在滚动时逐帧触发重组。
+    var imageCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
 
     val request = remember(imageUri, shouldLoad, colorMask) {
         DisplayRequest(context, imageUri) {
@@ -284,7 +287,9 @@ fun NetworkImage(
             imageUri = imageUri,
             show = isLongPressing,
             layoutSizeProvider = { layoutSize },
-            layoutOffsetProvider = { layoutOffset },
+            layoutOffsetProvider = {
+                imageCoordinates?.takeIf { it.isAttached }?.positionInWindow() ?: Offset.Zero
+            },
             imageAspectRatioProvider = { imageAspectRatio },
             originImageUri = photoViewData?.data?.originUrl
         )
@@ -350,9 +355,13 @@ fun NetworkImage(
                 .onSizeChanged {
                     layoutSize = it
                 }
-                .onGloballyPositioned {
-                    layoutOffset = it.positionInWindow()
-                },
+                .then(
+                    if (enablePreview) {
+                        Modifier.onGloballyPositioned { imageCoordinates = it }
+                    } else {
+                        Modifier
+                    }
+                ),
             contentDescription = contentDescription,
             contentScale = contentScale,
             state = state,

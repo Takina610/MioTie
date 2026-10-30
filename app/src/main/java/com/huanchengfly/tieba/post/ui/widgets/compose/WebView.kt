@@ -230,8 +230,21 @@ fun WebView(
             }.also { state.webView = it }
         },
         modifier = modifier,
-        onRelease = {
-            onDispose(it)
+        onRelease = { webView ->
+            onDispose(webView)
+            // WebView 持有独立的渲染进程 / 原生资源，必须显式销毁；仅移出组合会一直占用内存。
+            // freeMemory/onPause 让 Chromium 尽早归还页面缓存与 GPU 纹理（实测可降低页面往返后的常驻）。
+            webView.stopLoading()
+            webView.onPause()
+            webView.clearHistory()
+            webView.freeMemory()
+            webView.removeAllViews()
+            webView.setLayerType(android.view.View.LAYER_TYPE_NONE, null)
+            webView.webChromeClient = null
+            webView.destroy()
+            if (state.webView === webView) {
+                state.webView = null
+            }
         }
     )
 }

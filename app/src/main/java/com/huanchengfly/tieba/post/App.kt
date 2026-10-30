@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.ActivityManager
 import android.app.Application
+import android.content.ComponentCallbacks2
 import android.content.Context
 import android.content.res.Configuration
 import android.content.res.Resources
@@ -38,6 +39,7 @@ import com.github.panpf.sketch.fetch.FetchResult
 import com.github.panpf.sketch.http.OkHttpStack
 import com.github.panpf.sketch.request.PauseLoadWhenScrollingDrawableDecodeInterceptor
 import com.github.panpf.sketch.request.internal.RequestContext
+import com.github.panpf.sketch.sketch
 import com.huanchengfly.tieba.post.components.ClipBoardLinkDetector
 import com.huanchengfly.tieba.post.components.OAIDGetter
 
@@ -108,6 +110,19 @@ class App : Application(), SketchFactory {
             AppIconUtil.setIcon()
             runBlocking { BlockManager.init() }
             EmoticonManager.init(this@App)
+        }
+    }
+
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        // 图片内存缓存默认约为大内存堆上限的 1/3（单屏 1080x2400 时约 40MB）。
+        // 进程进入后台或内存吃紧时主动归还，避免看了一堆大图/动图后常驻偏高。
+        // TRIM_MEMORY_RUNNING_CRITICAL(15) 不在后台档位区间里，需要单独判断。
+        if (level >= ComponentCallbacks2.TRIM_MEMORY_BACKGROUND ||
+            level == ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL
+        ) {
+            sketch.memoryCache.clear()
+            sketch.bitmapPool.clear()
         }
     }
 
