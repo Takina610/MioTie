@@ -14,6 +14,9 @@ val keystoreProperties = Properties().apply {
     }
 }
 
+// 是否配置了正式发布签名（供 release 校验与 signingConfig 选择使用）
+val hasReleaseSigning = keystoreProperties.getProperty("keystore.file", "").isNotBlank()
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose.compiler)
@@ -93,6 +96,22 @@ android {
                 enableV4Signing = true
             }
         }
+        // 内置开发签名，仅供本地 debug 构建。不要依赖 AGP 自动生成的 debug.keystore：
+        // 它的路径随 ANDROID_USER_HOME 或 ~/.android 变化，换环境后签名随之改变，
+        // 覆盖安装失败，只能卸载重装，登录态一起丢失。
+        val devKeystore = rootProject.layout.projectDirectory.file("dev.keystore").asFile
+        if (devKeystore.exists()) {
+            create("dev") {
+                storeFile = devKeystore
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
+                enableV4Signing = true
+            }
+        }
     }
     buildTypes {
         debug {
@@ -101,6 +120,10 @@ android {
             isDebuggable = true
             isJniDebuggable = true
             multiDexEnabled = true
+            // 本地调试用固定开发签名，保证反复覆盖安装不丢登录态
+            if (signingConfigs.any { it.name == "dev" }) {
+                signingConfig = signingConfigs.getByName("dev")
+            }
         }
         release {
             isMinifyEnabled = true
@@ -112,12 +135,11 @@ android {
             isDebuggable = false
             isJniDebuggable = false
             multiDexEnabled = true
-        }
-        all {
-            signingConfig =
-                if (signingConfigs.any { it.name == "config" })
-                    signingConfigs.getByName("config")
-                else signingConfigs.getByName("debug")
+            // 发布包只允许正式签名，绝不回退到开发签名或 AGP 的 debug 签名。
+            // 缺少 keystore.properties 时由文件末尾的校验直接失败，避免误发测试签名。
+            if (signingConfigs.any { it.name == "config" }) {
+                signingConfig = signingConfigs.getByName("config")
+            }
         }
     }
     compileOptions {
@@ -147,6 +169,19 @@ androidComponents {
             )
         }
     }
+}
+
+// release 必须使用正式签名。缺少 keystore.properties 时，只要本次构建涉及 release 任务就直接失败，
+// 避免把开发签名或未签名包当作发布产物发出去；纯 debug 构建不受影响。
+val requestedReleaseTask = gradle.startParameter.taskNames.any {
+    it.contains("Release", ignoreCase = true) || it.contains("bundle", ignoreCase = true)
+}
+if (requestedReleaseTask && !hasReleaseSigning) {
+    throw GradleException(
+        "Release 构建需要正式签名，但未找到 keystore.properties。" +
+            "请在项目根目录配置 keystore.file / keystore.password / keystore.key.alias / keystore.key.password；" +
+            "本地调试请使用 debug 构建。"
+    )
 }
 
 dependencies {

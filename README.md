@@ -106,6 +106,19 @@ app/build/outputs/apk/debug/MioTie-v{version}.apk
 
 本地 SDK 路径通过 <code>local.properties</code> 的 <code>sdk.dir</code> 配置；Release 构建会启用 R8 与资源收缩。
 
+### 本地签名
+
+仓库根目录的 <code>dev.keystore</code> 是固定签名的开发密钥，**仅供 debug 构建使用**。
+固定签名后反复覆盖安装不会清除登录态与本地数据，方便真机调试。
+
+不要删除该文件。AGP 自动生成的 <code>debug.keystore</code> 位置随 <code>ANDROID_USER_HOME</code>
+或 <code>~/.android</code> 变化，签名一旦改变就只能卸载重装，本地数据会一起丢失。
+
+release 构建只接受 <code>keystore.properties</code> 中配置的正式签名，缺少该文件时构建直接失败，
+不会回退到开发签名或 debug 签名，避免测试签名被误当作发布包。CI 发布构建通过 secrets 注入该文件。
+
+真机调试使用 <code>run_phone.bat</code>，它构建并安装 debug 包。
+
 ## 技术栈
 
 - Kotlin 2.3
