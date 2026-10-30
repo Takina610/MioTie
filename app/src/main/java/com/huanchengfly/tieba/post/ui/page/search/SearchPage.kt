@@ -88,6 +88,8 @@ import com.huanchengfly.tieba.post.ui.glass.IosSearchContentBottomPadding
 import com.huanchengfly.tieba.post.ui.glass.IosSearchHorizontalMargin
 import com.huanchengfly.tieba.post.ui.glass.LocalGlassBackdrop
 import com.huanchengfly.tieba.post.ui.glass.LocalGlassColors
+import com.huanchengfly.tieba.post.ui.glass.recordBackdropSource
+import com.huanchengfly.tieba.post.ui.glass.rememberRecordedBackdrop
 import com.huanchengfly.tieba.post.ui.glass.defaultGlassColors
 import com.huanchengfly.tieba.post.ui.page.ProvideNavigator
 import com.huanchengfly.tieba.post.ui.page.destinations.SearchPageDestination
@@ -107,8 +109,6 @@ import com.huanchengfly.tieba.post.ui.widgets.compose.TabRow
 import com.huanchengfly.tieba.post.ui.widgets.compose.TopAppBarContainer
 import com.huanchengfly.tieba.post.ui.widgets.compose.debounceClickable
 import com.huanchengfly.tieba.post.ui.widgets.compose.picker.ListSinglePicker
-import com.kyant.backdrop.backdrops.layerBackdrop
-import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.ramcosta.composedestinations.annotation.DeepLink
 import com.ramcosta.composedestinations.annotation.Destination
 import com.ramcosta.composedestinations.navigation.DestinationsNavigator
@@ -291,7 +291,7 @@ fun SearchPage(
         }
     }
     val pagerState = rememberPagerState { pages.size }
-    val searchBackdrop = rememberLayerBackdrop()
+    val searchBackdrop = rememberRecordedBackdrop()
     val layoutDirection = LocalLayoutDirection.current
     val density = LocalDensity.current
     // 对齐 MeiloX 搜索页：底部避让取 IME 与系统栏的较大值
@@ -311,7 +311,7 @@ fun SearchPage(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .layerBackdrop(searchBackdrop)
+                .recordBackdropSource(searchBackdrop)
         ) {
             MyScaffold(
                 topBar = {

@@ -51,11 +51,10 @@ fun IosTopToolbar(
     modifier: Modifier = Modifier,
     subtitle: String? = null,
     style: IosTopBarStyle = IosTopBarStyle.Default,
-    collapseProgress: Float = 1f,
+    collapseProgress: () -> Float = { 1f },
     navigation: (@Composable () -> Unit)? = null,
     actions: @Composable RowScope.() -> Unit = {},
 ) {
-    val progress = collapseProgress.coerceIn(0f, 1f)
     CompositionLocalProvider(
         LocalGlassSurfaceBrightness provides 1f,
         LocalGlassSurfaceStyle provides GlassSurfaceStyle.Navigation,
@@ -111,12 +110,13 @@ fun IosTopToolbar(
                                 else centeredTitleSidePadding,
                             )
                             .graphicsLayer {
+                                val progress = collapseProgress().coerceIn(0f, 1f)
                                 alpha = progress
                                 val scale = 0.92f + 0.08f * progress
                                 scaleX = scale
                                 scaleY = scale
                             }
-                            .blur(8.dp * (1f - progress)),
+                            .blurBy { 8.dp * (1f - collapseProgress().coerceIn(0f, 1f)) },
                         horizontalAlignment = if (style == IosTopBarStyle.TwoLineLeading) Alignment.Start else Alignment.CenterHorizontally,
                     ) {
                         Text(

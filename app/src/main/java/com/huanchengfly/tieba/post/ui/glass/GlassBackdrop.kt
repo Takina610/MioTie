@@ -5,9 +5,11 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
@@ -20,6 +22,7 @@ import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.layout.positionOnScreen
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.IntSize
@@ -82,6 +85,83 @@ fun GlassBackdropHost(
 }
 
 fun Modifier.glassBackdropSource(backdrop: LayerBackdrop): Modifier = layerBackdrop(backdrop)
+
+/**
+ * Full-page backdrop source that replays its content once per draw.
+ *
+ * Upstream `Modifier.layerBackdrop` draws the content to the screen and then replays the same
+ * drawing a second time into the backdrop layer. For full-screen sources (pages and the tab
+ * host) that replay dominates frame time while scrolling, so record into the layer and draw the
+ * layer instead. Sampling mirrors `LayerBackdrop`: map the glass back into source-local
+ * coordinates and invert press/drag scaling so sampled pixels stay screen-anchored.
+ */
+@Stable
+class RecordedBackdrop internal constructor(
+    internal val graphicsLayer: GraphicsLayer,
+) : Backdrop {
+    internal var layerCoordinates: LayoutCoordinates? = null
+
+    override val isCoordinatesDependent: Boolean get() = true
+
+    private val inverseLayerScope = GraphicsLayerBlockScope()
+
+    override fun DrawScope.drawBackdrop(
+        density: Density,
+        coordinates: LayoutCoordinates?,
+        layerBlock: (GraphicsLayerScope.() -> Unit)?,
+    ) {
+        val glassCoordinates = coordinates ?: return
+        if (!glassCoordinates.isAttached) return
+        val source = layerCoordinates?.takeIf { it.isAttached } ?: return
+        val offset = runCatching {
+            source.localPositionOf(glassCoordinates, Offset.Zero)
+        }.getOrElse {
+            glassCoordinates.positionInWindow() - source.positionInWindow()
+        }
+        withTransform({
+            if (layerBlock != null) {
+                inverseLayerScope.reset(
+                    drawScope = density,
+                    size = Size(
+                        glassCoordinates.size.width.toFloat(),
+                        glassCoordinates.size.height.toFloat(),
+                    ),
+                )
+                layerBlock.invoke(inverseLayerScope)
+                scale(
+                    1f / inverseLayerScope.scaleX.coerceAtLeast(0.001f),
+                    1f / inverseLayerScope.scaleY.coerceAtLeast(0.001f),
+                    Offset.Zero,
+                )
+            }
+            translate(-offset.x, -offset.y)
+        }) {
+            drawLayer(graphicsLayer)
+        }
+    }
+}
+
+@Composable
+fun rememberRecordedBackdrop(): RecordedBackdrop {
+    val graphicsLayer = rememberGraphicsLayer()
+    return remember(graphicsLayer) { RecordedBackdrop(graphicsLayer) }
+}
+
+/** Single-pass counterpart of `Modifier.layerBackdrop(backdrop)`. */
+fun Modifier.recordBackdropSource(backdrop: RecordedBackdrop): Modifier =
+    this
+        .onGloballyPositioned { coordinates ->
+            if (coordinates.isAttached) backdrop.layerCoordinates = coordinates
+        }
+        .drawWithContent {
+            val widthPx = size.width.toInt()
+            val heightPx = size.height.toInt()
+            if (widthPx <= 0 || heightPx <= 0) return@drawWithContent drawContent()
+            val content = this
+            val layer = backdrop.graphicsLayer
+            layer.record(IntSize(widthPx, heightPx)) { content.drawContent() }
+            drawLayer(layer)
+        }
 
 /** Window-space positions of backdrop source layers, for cross-window sampling. */
 private val backdropSourcePositions = WeakHashMap<LayerBackdrop, LayoutCoordinates>()

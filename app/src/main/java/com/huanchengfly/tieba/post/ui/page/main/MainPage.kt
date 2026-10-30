@@ -64,6 +64,8 @@ import com.huanchengfly.tieba.post.rememberPreferenceAsState
 import com.huanchengfly.tieba.post.ui.common.theme.compose.ExtendedTheme
 import com.huanchengfly.tieba.post.ui.common.windowsizeclass.WindowHeightSizeClass
 import com.huanchengfly.tieba.post.ui.common.windowsizeclass.WindowWidthSizeClass
+import com.huanchengfly.tieba.post.ui.glass.recordBackdropSource
+import com.huanchengfly.tieba.post.ui.glass.rememberRecordedBackdrop
 import com.huanchengfly.tieba.post.ui.page.ProvideNavigator
 import com.huanchengfly.tieba.post.ui.page.destinations.MyPageDestination
 import com.huanchengfly.tieba.post.ui.page.destinations.SearchPageDestination
@@ -79,8 +81,6 @@ import com.huanchengfly.tieba.post.ui.widgets.compose.MyScaffold
 import com.huanchengfly.tieba.post.ui.widgets.compose.SplashState
 import com.huanchengfly.tieba.post.utils.AccountUtil.LocalAccount
 import com.huanchengfly.tieba.post.utils.appPreferences
-import com.kyant.backdrop.backdrops.layerBackdrop
-import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.ramcosta.composedestinations.annotation.Destination
 import com.ramcosta.composedestinations.annotation.RootNavGraph
 import com.ramcosta.composedestinations.navigation.DestinationsNavigator
@@ -307,8 +307,8 @@ fun MainPage(
         key = booleanPreferencesKey("keepBottomBarExpanded"),
         defaultValue = LocalContext.current.appPreferences.keepBottomBarExpanded
     )
-    // 玻璃底栏的背景源：内容层录制为 LayerBackdrop，悬浮 Dock 用 backdrop 库采样（MeiloX 同款）
-    val dockBackdrop = rememberLayerBackdrop()
+    // 玻璃底栏的背景源：内容层录制为 backdrop，悬浮 Dock 用 backdrop 库采样（MeiloX 同款）
+    val dockBackdrop = rememberRecordedBackdrop()
     val saveableStateHolder = rememberSaveableStateHolder()
     // 真悬浮布局:胶囊叠于内容之上,内容 edge-to-edge;经典贴底/Rail 模式沿用 Scaffold 避让
     val floatingLayout = navigationType == MainNavigationType.BOTTOM_NAVIGATION && floatingBottomNav
@@ -401,7 +401,7 @@ fun MainPage(
                                 .fillMaxSize()
                                 .then(
                                     if (floatingLayout) {
-                                        Modifier.layerBackdrop(dockBackdrop)
+                                        Modifier.recordBackdropSource(dockBackdrop)
                                     } else Modifier
                                 ),
                         ) { id ->

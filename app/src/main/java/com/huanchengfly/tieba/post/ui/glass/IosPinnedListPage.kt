@@ -42,8 +42,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.BackdropEffectScope
-import com.kyant.backdrop.backdrops.layerBackdrop
-import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.drawPlainBackdrop
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.runtimeShaderEffect
@@ -260,7 +258,7 @@ fun IosPinnedListPage(
     content: LazyListScope.() -> Unit,
 ) {
     val collapseDistancePx = with(LocalDensity.current) { 56.dp.toPx() }
-    val collapseProgress by remember(listState, showsLargeTitle) {
+    val collapseProgress = remember(listState, showsLargeTitle) {
         derivedStateOf {
             if (!showsLargeTitle) {
                 1f
@@ -271,6 +269,7 @@ fun IosPinnedListPage(
             }
         }
     }
+    val collapseProgressProvider = remember(collapseProgress) { { collapseProgress.value } }
     IosPinnedPage(
         title = title,
         subtitle = subtitle,
@@ -278,7 +277,7 @@ fun IosPinnedListPage(
         modifier = modifier,
         onNavigateBack = onNavigateBack,
         actions = actions,
-        collapseProgress = collapseProgress,
+        collapseProgress = collapseProgressProvider,
         backgroundColor = backgroundColor,
         backgroundBrush = backgroundBrush,
     ) { contentPadding ->
@@ -299,13 +298,14 @@ fun IosPinnedListPage(
                         Modifier
                             .fillMaxWidth()
                             .graphicsLayer {
-                                alpha = 1f - collapseProgress
-                                val scale = 1f - 0.04f * collapseProgress
+                                val progress = collapseProgress.value
+                                alpha = 1f - progress
+                                val scale = 1f - 0.04f * progress
                                 scaleX = scale
                                 scaleY = scale
                                 transformOrigin = TransformOrigin(0f, 0.5f)
                             }
-                            .blur(6.dp * collapseProgress)
+                            .blurBy { 6.dp * collapseProgress.value }
                             .offset(y = (-10).dp)
                             .padding(horizontal = largeTitleHorizontalPadding, vertical = 6.dp),
                     ) {
@@ -345,9 +345,9 @@ fun IosPinnedPage(
     subtitle: String? = null,
     onNavigateBack: (() -> Unit)? = null,
     actions: @Composable RowScope.() -> Unit = {},
-    collapseProgress: Float = 1f,
+    collapseProgress: () -> Float = { 1f },
     backgroundColor: Color? = null,
-    topBarBlurProgress: Float = collapseProgress,
+    topBarBlurProgress: () -> Float = collapseProgress,
     backgroundBrush: Brush? = null,
     /**
      * 内容是否需要被玻璃顶栏采样。
@@ -359,7 +359,7 @@ fun IosPinnedPage(
     sampleContentBackdrop: Boolean = true,
     content: @Composable BoxScope.(PaddingValues) -> Unit,
 ) {
-    val pageBackdrop = rememberLayerBackdrop()
+    val pageBackdrop = rememberRecordedBackdrop()
     val colors = LocalGlassColors.current
     val appearance = LocalGlassAppearance.current
     val pageBackground = backgroundColor ?: colors.groupedBackground
@@ -381,7 +381,7 @@ fun IosPinnedPage(
             Box(
                 Modifier
                     .fillMaxSize()
-                    .then(if (usesBackdrop) Modifier.layerBackdrop(pageBackdrop) else Modifier)
+                    .then(if (usesBackdrop) Modifier.recordBackdropSource(pageBackdrop) else Modifier)
                     .then(
                         if (backgroundBrush != null) Modifier.background(backgroundBrush)
                         else Modifier.background(pageBackground),
@@ -395,7 +395,7 @@ fun IosPinnedPage(
                     .height(toolbarHeight + if (usesBackdrop) 34.dp else 0.dp)
                     .align(Alignment.TopCenter)
                     .graphicsLayer {
-                        alpha = if (usesBackdrop) topBarBlurProgress.coerceIn(0f, 1f) else 1f
+                        alpha = if (usesBackdrop) topBarBlurProgress().coerceIn(0f, 1f) else 1f
                     }
                     .then(
                         if (usesBackdrop) {
