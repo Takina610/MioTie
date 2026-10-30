@@ -29,8 +29,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.Icon
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.State
@@ -103,6 +101,9 @@ private val UserInfoBarAvatarSize = 28.dp
  */
 val MainBottomOverlayHeight =
     UserInfoBarHeight + MainBottomBarGap + DockNavBarHeight + MainBottomBarMargin
+
+/** 收缩态悬浮区高度（44dp 圆钮 + 底边距），不含系统导航栏 inset。 */
+val MainBottomCompactOverlayHeight = DockCompactHeight + MainBottomBarMargin
 
 /** 搜索钮宿主边长（对齐 MeiloX 1.55.1 的 64dp Box）。 */
 private val SearchHostSize = 64.dp
@@ -435,11 +436,12 @@ private fun UserInfoContent(
             }
         }
         Box(contentAlignment = Alignment.Center) {
-            Icon(
-                imageVector = Icons.Rounded.ChevronRight,
+            // 与 MeiloX 一致：行尾统一 SF Symbol `chevron.forward` 17dp
+            SfIcon(
+                systemName = "chevron.forward",
                 contentDescription = null,
-                tint = ExtendedTheme.colors.textSecondary,
-                modifier = Modifier.size(20.dp),
+                size = 17.dp,
+                tint = LocalGlassColors.current.tertiaryContent,
             )
         }
     }

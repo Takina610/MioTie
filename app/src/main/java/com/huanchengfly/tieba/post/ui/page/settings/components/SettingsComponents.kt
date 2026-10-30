@@ -29,6 +29,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import com.huanchengfly.tieba.post.rememberPreferenceAsMutableState
 import com.huanchengfly.tieba.post.ui.glass.GlassToggle
 import com.huanchengfly.tieba.post.ui.glass.IosGroupedList
+import com.huanchengfly.tieba.post.ui.glass.IosPopUpButton
 import com.huanchengfly.tieba.post.ui.glass.IosTypography
 import com.huanchengfly.tieba.post.ui.glass.LocalGlassColors
 import com.huanchengfly.tieba.post.ui.glass.LocalGroupedListIconColor
@@ -210,6 +211,38 @@ private fun SwitchRowContent(
             GlassToggle(
                 checked = checked,
                 onCheckedChange = { if (enabled) currentOnToggle(it) },
+                enabled = enabled,
+            )
+        },
+    )
+}
+
+/**
+ * 行尾下拉选择（照搬 MeiloX「设置 - 通用 - 外观」`GeneralChoice`）：
+ * 图标 + 标题占满一行，右侧是强调色文字 + `chevron.up.chevron.down` 的弹出菜单。
+ */
+@Composable
+internal fun ChoiceSettingRow(
+    systemName: String,
+    title: String,
+    options: List<Pair<String, String>>,
+    selected: String,
+    onSelected: (String) -> Unit,
+    summary: String? = null,
+    enabled: Boolean = true,
+) {
+    val selectedOption = options.firstOrNull { it.first == selected } ?: options.first()
+    IosSettingRow(
+        title = title,
+        subtitle = summary,
+        enabled = enabled,
+        leading = { SfIcon(systemName, null, size = 23.dp) },
+        trailing = {
+            IosPopUpButton(
+                selected = selectedOption,
+                items = options,
+                onSelected = { onSelected(it.first) },
+                label = { it.second },
                 enabled = enabled,
             )
         },

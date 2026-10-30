@@ -84,6 +84,13 @@ val MainBottomBreathing = MainBottomOverlayHeight + 8.dp
  */
 val LocalMainBottomInsets = staticCompositionLocalOf { 0.dp }
 
+/**
+ * 底部浮层提示（iOS toast）的避让高度：随底栏收缩/展开变化。
+ * 展开态按个人信息条 + 导航胶囊 + 底边距 + 呼吸位计算；收缩态只避让 44dp 圆钮与底边距；
+ * 非悬浮模式 / 独立页面为 0.dp。
+ */
+val LocalMainBottomToastInset = staticCompositionLocalOf { 0.dp }
+
 @Composable
 fun PermanentNavigationDrawer(
     drawerContent: @Composable () -> Unit,

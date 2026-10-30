@@ -125,7 +125,7 @@ internal fun IosSettingRow(
         }
         if (onClick != null && trailing == null) {
             Spacer(Modifier.width(8.dp))
-            IosDisclosureIndicator(tint = colors.separator)
+            IosDisclosureIndicator(tint = colors.tertiaryContent)
         }
     }
 }

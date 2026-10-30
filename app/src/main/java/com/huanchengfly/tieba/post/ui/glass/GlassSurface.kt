@@ -16,6 +16,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,7 +45,6 @@ import androidx.compose.ui.node.requireGraphicsContext
 import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
@@ -385,19 +385,46 @@ internal fun Modifier.navigationGlassBackground(
     sampleBackdrop: Boolean = true,
     layerBlock: (GraphicsLayerScope.() -> Unit)? = null,
     appearance: GlassAppearance = GlassAppearance(),
+    navigationMaterial: Boolean = false,
+    isDark: Boolean = false,
+    blurRadius: Dp = 2.dp,
+    material: NavigationGlassMaterial? = null,
+    materialTint: Color? = null,
+    exportedBackdrop: LayerBackdrop? = null,
+    highlightAlphaMultiplier: Float = 1f,
+    shadowAlpha: Float = 1f,
+    refractionHeight: Dp = 10.dp,
+    refractionAmount: Dp = 24.dp,
 ): Modifier = this
-    .navigationGlassBoxShadow(shape, GlassBoxShadowAlpha, layerBlock)
+    .navigationGlassDropShadow(
+        shape = shape,
+        layerBlock = if (shadowAlpha == 1f) layerBlock else {
+            {
+                layerBlock?.invoke(this)
+                alpha *= shadowAlpha.coerceIn(0f, 1f)
+            }
+        },
+        shadowRadius = material?.shadowRadius ?: 15.dp,
+        shadowOffsetY = material?.shadowOffsetY ?: 8.dp,
+        shadowAlpha = material?.let { if (isDark) it.darkShadowAlpha else it.lightShadowAlpha } ?: 0.02f,
+    )
+    .navigationGlassBoxShadow(
+        shape,
+        GlassBoxShadowAlpha * shadowAlpha.coerceIn(0f, 1f),
+        layerBlock,
+    )
     .drawBackdrop(
         backdrop = if (sampleBackdrop && appearance.usesBackdrop) backdrop else emptyBackdrop(),
+        exportedBackdrop = exportedBackdrop,
         shape = shape,
         effects = {
             if (sampleBackdrop && appearance.usesBackdrop) {
                 vibrancy()
-                blur(2.dp.toPx())
-                if (appearance.usesRefraction) {
+                blur(blurRadius.toPx())
+                if (appearance.usesRefraction && refractionHeight > 0.dp && refractionAmount > 0.dp) {
                     lens(
-                        refractionHeight = 10.dp.toPx(),
-                        refractionAmount = 24.dp.toPx(),
+                        refractionHeight = refractionHeight.toPx(),
+                        refractionAmount = refractionAmount.toPx(),
                         depthEffect = true,
                         chromaticAberration = true,
                     )
@@ -407,23 +434,21 @@ internal fun Modifier.navigationGlassBackground(
         highlight = {
             val progress = pressProgressState?.value ?: pressProgress
             Highlight.Default.copy(
-                alpha = 0.54f + 0.38f * progress,
+                alpha = (0.54f + 0.38f * progress) * highlightAlphaMultiplier.coerceIn(0f, 1f),
                 style = HighlightStyle.Default(angle = highlightAngle),
             )
         },
-        shadow = {
-            Shadow(
-                radius = 15.dp,
-                offset = DpOffset(0.dp, 8.dp),
-                color = Color.Black,
-                alpha = 0.02f * GlassBoxShadowAlpha,
-            )
-        },
+        shadow = null,
         innerShadow = null,
         layerBlock = layerBlock,
         onDrawSurface = {
             if (appearance.reduceTransparency) {
                 drawRect(containerColor.copy(alpha = 1f))
+            } else if (navigationMaterial && material != null &&
+                sampleBackdrop && appearance.usesBackdrop
+            ) {
+                drawNavigationGlassMaterial(containerColor, isDark, containerAlphaMultiplier, material, materialTint)
+                surfaceOverlay?.invoke(this)
             } else if (surfaceOverlay != null) {
                 surfaceOverlay()
             } else {
@@ -476,6 +501,11 @@ fun GlassSurface(
         GlassEmphasis.Regular -> colors.container
         GlassEmphasis.Prominent -> colors.prominentContainer
     }
+    // 玻璃表面会被 drawBackdrop 缓存成一次录制；强调色/底色必须按状态读取，
+    // 否则同一节点切换 Regular↔Prominent 时会一直画旧底色（黑名单/白名单双选即此问题）。
+    val currentEmphasis = rememberUpdatedState(emphasis)
+    val currentSurfaceColor = rememberUpdatedState(surfaceColor)
+    val currentEnabled = rememberUpdatedState(enabled)
     val pressProgressState = remember(interactiveHighlight, pressHighlight) {
         derivedStateOf { pressHighlight?.progress ?: interactiveHighlight.pressProgress }
     }
@@ -549,11 +579,22 @@ fun GlassSurface(
                 shape = shapeProvider,
                 containerColor = containerColor,
                 containerAlphaMultiplier = navigationSurfaceAlphaMultiplier,
-                surfaceOverlay = if (emphasis == GlassEmphasis.Prominent) {
-                    {
-                        drawGlassSurfaceColor(containerColor, true, isLight, brightness, enabled)
+                // 始终提供 surfaceOverlay：Regular 走 translucency、Prominent 走强调色，
+                // 两者都在绘制期读取状态，确保切换时重新绘制而不是复用旧录制。
+                surfaceOverlay = {
+                    if (appearance.reduceTransparency) {
+                        drawRect(currentSurfaceColor.value.copy(alpha = 1f))
+                    } else if (currentEmphasis.value == GlassEmphasis.Prominent) {
+                        drawGlassSurfaceColor(currentSurfaceColor.value, true, isLight, brightness, currentEnabled.value)
+                    } else {
+                        drawRect(
+                            currentSurfaceColor.value.copy(
+                                alpha = currentSurfaceColor.value.alpha *
+                                    navigationSurfaceAlphaMultiplier.coerceAtLeast(0f),
+                            ),
+                        )
                     }
-                } else null,
+                },
                 pressProgressState = pressProgressState,
                 sampleBackdrop = sampleBackdrop,
                 layerBlock = dragScaleLayerBlock,
@@ -622,14 +663,14 @@ fun GlassSurface(
                 exportedBackdrop = exportedBackdrop,
                 onDrawSurface = {
                     if (appearance.reduceTransparency) {
-                        drawRect(surfaceColor.copy(alpha = 1f))
+                        drawRect(currentSurfaceColor.value.copy(alpha = 1f))
                     } else {
                         drawGlassSurfaceColor(
-                            surfaceColor = surfaceColor,
-                            prominent = emphasis == GlassEmphasis.Prominent,
+                            surfaceColor = currentSurfaceColor.value,
+                            prominent = currentEmphasis.value == GlassEmphasis.Prominent,
                             isLight = isLight,
                             brightness = brightness,
-                            enabled = enabled,
+                            enabled = currentEnabled.value,
                         )
                     }
                 },
@@ -681,10 +722,11 @@ fun GlassButton(
     navigationSurfaceColor: Color? = null,
     enabled: Boolean = true,
     emphasis: GlassEmphasis = GlassEmphasis.Regular,
+    height: Dp = LocalGlassDimensions.current.controlHeight,
     content: @Composable RowScope.() -> Unit,
 ) {
     GlassSurface(
-        modifier = modifier.height(LocalGlassDimensions.current.controlHeight),
+        modifier = modifier.height(height),
         backdrop = backdrop,
         style = style,
         navigationSurfaceColor = navigationSurfaceColor,

@@ -16,11 +16,9 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.ContentAlpha
 import androidx.compose.material.ExperimentalMaterialApi
-import androidx.compose.material.Icon
+import androidx.compose.material.LocalContentColor
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.KeyboardArrowRight
 import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.runtime.Composable
@@ -38,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.eygraber.compose.placeholder.material.placeholder
 import com.huanchengfly.tieba.post.R
+import com.huanchengfly.tieba.post.ui.glass.SfIcon
 import com.huanchengfly.tieba.post.api.models.protos.hasAgree
 import com.huanchengfly.tieba.post.arch.GlobalEvent
 import com.huanchengfly.tieba.post.arch.collectPartialAsState
@@ -213,10 +212,11 @@ fun HotPage(
                                             text = stringResource(id = R.string.tip_more_topic),
                                             fontWeight = FontWeight.Bold
                                         )
-                                        Icon(
-                                            imageVector = Icons.Rounded.KeyboardArrowRight,
+                                        SfIcon(
+                                            systemName = "chevron.forward",
                                             contentDescription = null,
-                                            modifier = Modifier.size(16.dp)
+                                            tint = LocalContentColor.current,
+                                            size = 13.dp
                                         )
                                     }
                                 }

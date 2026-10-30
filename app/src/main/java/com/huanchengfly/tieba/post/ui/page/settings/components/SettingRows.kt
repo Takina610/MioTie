@@ -6,7 +6,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -20,14 +22,10 @@ import com.huanchengfly.tieba.post.R
 import com.huanchengfly.tieba.post.collectPreferenceAsState
 import com.huanchengfly.tieba.post.dataStore
 import com.huanchengfly.tieba.post.putString
+import com.huanchengfly.tieba.post.ui.glass.IosChoiceSheet
+import com.huanchengfly.tieba.post.ui.glass.IosInputDialog
+import com.huanchengfly.tieba.post.ui.glass.IosTimePickerSheet
 import com.huanchengfly.tieba.post.ui.glass.LocalGlassColors
-import com.huanchengfly.tieba.post.ui.widgets.compose.Dialog
-import com.huanchengfly.tieba.post.ui.widgets.compose.DialogNegativeButton
-import com.huanchengfly.tieba.post.ui.widgets.compose.PromptDialog
-import com.huanchengfly.tieba.post.ui.widgets.compose.TimePickerDialog
-import com.huanchengfly.tieba.post.ui.widgets.compose.rememberDialogState
-import com.huanchengfly.tieba.post.ui.widgets.compose.picker.ListSinglePicker
-import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.flow.map
 
 /**
@@ -37,7 +35,7 @@ import kotlinx.coroutines.flow.map
  */
 
 /**
- * 单选行（替代旧 PrefsScreen 的 ListPref）：点击弹单选对话框。
+ * 单选行：点击弹出 Glasmio 风格的 iOS 选项 sheet。
  * [key] 传 null 时不落盘（如切换账号），选中值经 [onValueChange] 回调处理。
  */
 @Composable
@@ -54,7 +52,7 @@ internal fun ListSettingRow(
     onValueChange: ((String) -> Unit)? = null,
 ) {
     val context = LocalContext.current
-    val dialogState = rememberDialogState()
+    var showSheet by remember { mutableStateOf(false) }
     // 只读收集当前值（key 为 null 时不收集，如切换账号场景）
     val current: String? = if (key != null) {
         val prefs by remember {
@@ -69,31 +67,24 @@ internal fun ListSettingRow(
         title = title,
         subtitle = summary ?: entries[current] ?: stringResource(id = R.string.summary_not_set),
         enabled = enabled,
-        onClick = { dialogState.show() },
+        onClick = { showSheet = true },
         leading = { SettingRowLeading(icon = icon, systemName = systemName) },
     )
 
-    Dialog(
-        dialogState = dialogState,
-        title = { Text(text = dialogTitle) },
-        buttons = {
-            DialogNegativeButton(text = stringResource(id = R.string.button_cancel))
-        }
-    ) {
-        ListSinglePicker(
-            itemTitles = entries.values.toImmutableList(),
-            itemValues = entries.keys.toImmutableList(),
-            selectedPosition = entries.keys.indexOf(current),
-            onItemSelected = { _, _, value, _ ->
-                key?.let { k ->
-                    context.dataStore.putString(k, value)
-                }
-                onValueChange?.invoke(value)
-                dialogState.show = false
-            },
-            modifier = Modifier.padding(bottom = 16.dp),
-        )
-    }
+    IosChoiceSheet(
+        visible = showSheet,
+        title = dialogTitle,
+        options = entries.map { it.key to it.value },
+        selected = current,
+        onSelect = { value ->
+            key?.let { k ->
+                context.dataStore.putString(k, value)
+            }
+            onValueChange?.invoke(value)
+        },
+        onDismiss = { showSheet = false },
+        cancelLabel = stringResource(id = R.string.button_cancel),
+    )
 }
 
 /** 文本输入行（替代旧 EditTextPref）：点击弹输入对话框，确认后写回；[emptySummary] 为值为空时的占位摘要 */
@@ -111,7 +102,7 @@ internal fun TextInputSettingRow(
     onValueSaved: ((String) -> Unit)? = null,
 ) {
     val context = LocalContext.current
-    val dialogState = rememberDialogState()
+    var showDialog by remember { mutableStateOf(false) }
     val current by context.dataStore.collectPreferenceAsState(
         key = stringPreferencesKey(key),
         defaultValue = defaultValue
@@ -121,22 +112,25 @@ internal fun TextInputSettingRow(
         title = title,
         subtitle = summary ?: current.ifBlank { emptySummary?.let { context.getString(it) } },
         enabled = enabled,
-        onClick = { dialogState.show() },
+        onClick = { showDialog = true },
         leading = { SettingRowLeading(icon = icon, systemName = systemName) },
     )
 
-    PromptDialog(
-        dialogState = dialogState,
-        title = { Text(text = dialogTitle ?: title) },
+    IosInputDialog(
+        visible = showDialog,
+        title = dialogTitle ?: title,
         initialValue = current,
+        confirmLabel = stringResource(id = R.string.button_sure_default),
+        cancelLabel = stringResource(id = R.string.button_cancel),
         onConfirm = { value ->
             context.dataStore.putString(key, value)
             onValueSaved?.invoke(value)
         },
+        onDismiss = { showDialog = false },
     )
 }
 
-/** 时间选择行（替代旧 TimePickerPerf）：点击弹时间选择对话框 */
+/** 时间选择行：点击弹出 Glasmio 风格的 iOS 时间选择 sheet（时/分双滚轮）。 */
 @Composable
 internal fun TimePickerSettingRow(
     title: String,
@@ -149,7 +143,7 @@ internal fun TimePickerSettingRow(
     enabled: Boolean = true,
 ) {
     val context = LocalContext.current
-    val dialogState = rememberDialogState()
+    var showSheet by remember { mutableStateOf(false) }
     val current by context.dataStore.collectPreferenceAsState(
         key = stringPreferencesKey(key),
         defaultValue = defaultValue
@@ -159,17 +153,19 @@ internal fun TimePickerSettingRow(
         title = title,
         subtitle = summary(current),
         enabled = enabled,
-        onClick = { dialogState.show() },
+        onClick = { showSheet = true },
         leading = { SettingRowLeading(icon = icon, systemName = systemName) },
     )
 
-    TimePickerDialog(
-        dialogState = dialogState,
-        title = { Text(text = dialogTitle ?: title) },
-        currentTime = current,
+    IosTimePickerSheet(
+        visible = showSheet,
+        title = dialogTitle ?: title,
+        initialTime = current,
+        confirmLabel = stringResource(id = R.string.action_done),
         onConfirm = { time ->
             context.dataStore.putString(key, time)
         },
+        onDismiss = { showSheet = false },
     )
 }
 

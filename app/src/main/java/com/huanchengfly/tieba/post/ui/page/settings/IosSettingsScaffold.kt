@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.MaterialTheme
-import androidx.compose.material.SnackbarHost
 import androidx.compose.material.SnackbarHostState
 import androidx.compose.material.rememberScaffoldState
 import androidx.compose.material3.Text
@@ -34,11 +33,13 @@ import com.huanchengfly.tieba.post.ui.common.theme.compose.ExtendedTheme
 import com.huanchengfly.tieba.post.ui.glass.IosGroupedList
 import com.huanchengfly.tieba.post.ui.glass.IosPinnedListPage
 import com.huanchengfly.tieba.post.ui.glass.IosPinnedPage
+import com.huanchengfly.tieba.post.ui.glass.IosToastHost
 import com.huanchengfly.tieba.post.ui.glass.IosTypography
 import com.huanchengfly.tieba.post.ui.glass.LocalGlassBackdrop
 import com.huanchengfly.tieba.post.ui.glass.LocalGlassColors
 import com.huanchengfly.tieba.post.ui.glass.defaultGlassColors
 import com.huanchengfly.tieba.post.ui.page.main.LocalMainBottomInsets
+import com.huanchengfly.tieba.post.ui.page.main.LocalMainBottomToastInset
 import com.huanchengfly.tieba.post.ui.widgets.compose.LocalSnackbarHostState
 import com.huanchengfly.tieba.post.utils.ThemeUtil
 import com.kyant.backdrop.backdrops.rememberCanvasBackdrop
@@ -58,6 +59,7 @@ fun IosSettingsScaffold(
     onNavigateBack: (() -> Unit)? = null,
     showsLargeTitle: Boolean = true,
     bottomPadding: Dp = LocalMainBottomInsets.current,
+    overlay: (@Composable BoxScope.() -> Unit)? = null,
     content: LazyListScope.() -> Unit,
 ) {
     IosGlassPageScaffold(modifier = modifier) { background, snackbar ->
@@ -71,9 +73,12 @@ fun IosSettingsScaffold(
             backgroundColor = background,
             content = content,
         )
-        SnackbarHost(
+        // 弹层放在玻璃配色 Provider 内部，深色模式下才能取到正确的 iOS 配色
+        overlay?.invoke(this)
+        IosToastHost(
             hostState = snackbar,
-            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = bottomPadding),
+            modifier = Modifier.align(Alignment.BottomCenter),
+            bottomInset = LocalMainBottomToastInset.current,
         )
     }
 }
@@ -134,9 +139,10 @@ fun IosTopBarScaffold(
                 )
             }
         }
-        SnackbarHost(
+        IosToastHost(
             hostState = snackbar,
-            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp),
+            modifier = Modifier.align(Alignment.BottomCenter),
+            bottomInset = LocalMainBottomToastInset.current,
         )
     }
 }

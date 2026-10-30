@@ -355,10 +355,19 @@ fun MainPage(
             navigationType = navigationType,
             navigationContentPosition = navigationContentPosition
         ) {
+            // 收缩态只露出 44dp 圆钮；提示胶囊贴着当前可见的底栏上沿停靠
+            val bottomBarsCompact = !bottomBarsExpanded && !keepBottomBarExpanded
+            // 系统导航栏 inset 由 IosToastHost 的 navigationBarsPadding 补，避免重复叠加
+            val toastBottomInset = when {
+                !floatingLayout -> 0.dp
+                bottomBarsCompact -> MainBottomCompactOverlayHeight + 8.dp
+                else -> MainBottomBreathing
+            }
             CompositionLocalProvider(
                 LocalMainBottomInsets provides if (floatingLayout) {
                     MainBottomBreathing + navigationBarsInset
-                } else 0.dp
+                } else 0.dp,
+                LocalMainBottomToastInset provides toastBottomInset,
             ) {
                 MyScaffold(
                     backgroundColor = Color.Transparent,

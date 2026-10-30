@@ -1,9 +1,5 @@
 package com.huanchengfly.tieba.post.ui.page.settings.block
 
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Block
-import androidx.compose.material.icons.outlined.HideSource
-import androidx.compose.material.icons.outlined.VideocamOff
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import com.huanchengfly.tieba.post.R
@@ -29,25 +25,25 @@ fun BlockSettingsPage(
             // 大标题已是「屏蔽设置」，分组用概括名而非与首行同名的「屏蔽词管理」
             SettingsGroup(stringResource(id = R.string.title_settings_group_content)) {
                 SettingRow(
-                    icon = Icons.Outlined.Block,
+                    systemName = "shield",
                     title = stringResource(id = R.string.title_block_list),
                     onClick = { navigator.navigate(BlockListPageDestination) }
                 )
                 SwitchSettingRow(
-                    icon = Icons.Outlined.HideSource,
+                    systemName = "eye",
                     title = stringResource(id = R.string.settings_hide_blocked_content),
                     key = "hideBlockedContent",
                     defaultValue = false,
                 )
                 SwitchSettingRow(
-                    icon = Icons.Outlined.VideocamOff,
+                    systemName = "video",
                     title = stringResource(id = R.string.settings_block_video),
                     summary = stringResource(id = R.string.settings_block_video_summary),
                     key = "blockVideo",
                     defaultValue = false,
                 )
                 SwitchSettingRow(
-                    icon = Icons.Outlined.Block,
+                    systemName = "person.2",
                     title = stringResource(id = R.string.settings_show_followed_only),
                     summary = stringResource(id = R.string.settings_show_followed_only_summary),
                     key = "showFollowedOnly",

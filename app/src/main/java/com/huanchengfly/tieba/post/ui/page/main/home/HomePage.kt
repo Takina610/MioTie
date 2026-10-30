@@ -32,11 +32,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.DropdownMenuItem
 import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.Icon
+import androidx.compose.material.LocalContentColor
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.ViewAgenda
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Search
@@ -78,6 +78,7 @@ import com.huanchengfly.tieba.post.arch.onGlobalEvent
 import com.huanchengfly.tieba.post.arch.pageViewModel
 import com.huanchengfly.tieba.post.ui.common.theme.compose.ExtendedTheme
 import com.huanchengfly.tieba.post.ui.common.theme.compose.pullRefreshIndicator
+import com.huanchengfly.tieba.post.ui.glass.SfIcon
 import com.huanchengfly.tieba.post.ui.page.LocalNavigator
 import com.huanchengfly.tieba.post.ui.page.destinations.ForumPageDestination
 import com.huanchengfly.tieba.post.ui.page.main.LocalMainBottomInsets
@@ -539,12 +540,12 @@ fun HomePage(
 
                                         Spacer(modifier = Modifier.weight(1f))
 
-                                        Icon(
-                                            imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                                        SfIcon(
+                                            systemName = "chevron.forward",
                                             contentDescription = stringResource(id = R.string.desc_show),
-                                            modifier = Modifier
-                                                .size(24.dp)
-                                                .rotate(rotate)
+                                            tint = LocalContentColor.current,
+                                            size = 15.dp,
+                                            modifier = Modifier.rotate(rotate)
                                         )
                                     }
                                     AnimatedVisibility(visible = expandHistoryForum) {

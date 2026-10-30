@@ -22,6 +22,7 @@ package com.huanchengfly.tieba.post.ui.liquidglass
 
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitTouchSlopOrCancellation
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.AwaitPointerEventScope
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -31,9 +32,11 @@ import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.util.fastFirstOrNull
+import kotlin.math.abs
 
 suspend fun PointerInputScope.inspectDragGestures(
     consumeGestures: Boolean = false,
+    horizontalDragOnly: Boolean = false,
     onDragStart: (down: PointerInputChange) -> Unit = {},
     onDragEnd: (change: PointerInputChange) -> Unit = {},
     onDragCancel: () -> Unit = {},
@@ -48,6 +51,34 @@ suspend fun PointerInputScope.inspectDragGestures(
         if (consumeGestures) down.consume()
 
         onDragStart(down)
+        if (horizontalDragOnly) {
+            var ended = false
+            try {
+                var verticalIntent = false
+                val start = awaitTouchSlopOrCancellation(down.id) { change, overSlop ->
+                    if (!verticalIntent && abs(overSlop.x) > abs(overSlop.y)) {
+                        change.consume()
+                        onDrag(change, Offset(overSlop.x, 0f))
+                    } else {
+                        // 纵向意图留给外层滚动容器处理。
+                        verticalIntent = true
+                    }
+                } ?: return@awaitEachGesture
+                val up = drag(start.id) { change ->
+                    onDrag(change, Offset(change.positionChange().x, 0f))
+                    // 横向意图一旦成立，后续纵向漂移也不再触发滚动。
+                    change.consume()
+                }
+                if (up != null) {
+                    up.consume()
+                    ended = true
+                    onDragEnd(up)
+                }
+            } finally {
+                if (!ended) onDragCancel()
+            }
+            return@awaitEachGesture
+        }
         onDrag(drag, Offset.Zero)
         val upEvent =
             drag(

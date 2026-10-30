@@ -1,10 +1,9 @@
 package com.huanchengfly.tieba.post.ui.glass
 
-import androidx.compose.foundation.Canvas
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -98,6 +97,7 @@ fun IosListRow(
     onClick: (() -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
     showTopSeparator: Boolean = true,
+    showDisclosure: Boolean = onClick != null && trailing == null,
 ) {
     val colors = LocalGlassColors.current
     Row(
@@ -161,43 +161,29 @@ fun IosListRow(
                 trailingContent()
             }
         }
-        if (onClick != null && trailing == null) {
+        if (showDisclosure) {
             Spacer(Modifier.width(8.dp))
-            IosDisclosureIndicator(tint = colors.separator)
+            IosDisclosureIndicator()
         }
     }
 }
 
 /**
- * iOS 列表的 disclosure 指示器：细笔画的「>」，而非 SF Symbol 里的粗箭头。
- * 用 Canvas 画两段等宽线段，笔画宽度随尺寸线性缩放，保持与 iOS 一致的轻盈观感。
+ * iOS 列表的 disclosure 指示器（照搬 MeiloX 1.55.1 `IosListRow` 的行尾箭头）：
+ * SF Symbol `chevron.forward` 17dp、tertiaryContent 灰、8×22dp 槽位。
+ * 此前用 Canvas 自绘细线「>」，字形与 MeiloX 的 SF Symbol 不一致。
  */
 @Composable
 fun IosDisclosureIndicator(
     modifier: Modifier = Modifier,
-    size: Dp = 13.dp,
-    tint: Color = LocalGlassColors.current.separator,
+    size: Dp = 17.dp,
+    tint: Color = LocalGlassColors.current.tertiaryContent,
 ) {
-    Canvas(modifier.size(size)) {
-        val stroke = this.size.minDimension * 0.16f
-        val inset = this.size.minDimension * 0.28f
-        val startX = inset
-        val midY = this.size.height / 2f
-        val endX = this.size.width - inset
-        drawLine(
-            color = tint,
-            start = Offset(startX, inset),
-            end = Offset(endX, midY),
-            strokeWidth = stroke,
-            cap = StrokeCap.Round,
-        )
-        drawLine(
-            color = tint,
-            start = Offset(endX, midY),
-            end = Offset(startX, this.size.height - inset),
-            strokeWidth = stroke,
-            cap = StrokeCap.Round,
-        )
+    Box(
+        modifier.size(width = 8.dp, height = 22.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        SfIcon("chevron.forward", null, size = size, tint = tint)
     }
 }
 

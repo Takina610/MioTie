@@ -1,6 +1,7 @@
 package com.huanchengfly.tieba.post.ui.liquidglass
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.MutatorMutex
 import androidx.compose.runtime.State
@@ -10,6 +11,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.IntSize
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.filter
@@ -29,6 +32,10 @@ class DampedDragAnimation(
     val onDragStopped: DampedDragAnimation.() -> Unit,
     val onDrag: DampedDragAnimation.(size: IntSize, dragAmount: Offset) -> Unit,
     consumeGestures: Boolean = false,
+    val onDragCancelled: DampedDragAnimation.() -> Unit = onDragStopped,
+    private val dragCoordinateSpace: (() -> LayoutCoordinates?)? = null,
+    sharedValueAnimation: Animatable<Float, AnimationVector1D>? = null,
+    horizontalDragOnly: Boolean = false,
 ) {
 
     private val valueAnimationSpec =
@@ -43,7 +50,7 @@ class DampedDragAnimation(
         spring(0.7f, 250f, 0.001f)
 
     private val valueAnimation =
-        Animatable(initialValue, visibilityThreshold)
+        sharedValueAnimation ?: Animatable(initialValue, visibilityThreshold)
     private val velocityAnimation =
         Animatable(0f, 5f)
     private val pressProgressAnimation =
@@ -66,25 +73,39 @@ class DampedDragAnimation(
     val scaleY: Float get() = scaleYAnimation.value
     val velocity: Float get() = velocityAnimation.value
 
-    val modifier: Modifier = Modifier.pointerInput(Unit) {
-        inspectDragGestures(
-            consumeGestures = consumeGestures,
-            onDragStart = { down ->
-                onDragStarted(down.position)
-                press()
-            },
-            onDragEnd = {
-                onDragStopped()
-                release()
-            },
-            onDragCancel = {
-                onDragStopped()
-                release()
+    private var dragCoordinates: LayoutCoordinates? = null
+
+    val modifier: Modifier = Modifier
+        .then(if (dragCoordinateSpace != null) {
+            Modifier.onGloballyPositioned { dragCoordinates = it }
+        } else Modifier)
+        .pointerInput(this) {
+            inspectDragGestures(
+                consumeGestures = consumeGestures,
+                horizontalDragOnly = horizontalDragOnly,
+                onDragStart = { down ->
+                    onDragStarted(down.position)
+                    press()
+                },
+                onDragEnd = {
+                    onDragStopped()
+                    release()
+                },
+                onDragCancel = {
+                    onDragCancelled()
+                    release()
+                }
+            ) { change, dragAmount ->
+                val source = dragCoordinates
+                val destination = dragCoordinateSpace?.invoke()
+                val amount = if (source?.isAttached == true && destination?.isAttached == true) {
+                    // 在当前变换下换算向量：减去原点，移动中的指示器本身不会额外贡献手指位移。
+                    destination.localPositionOf(source, dragAmount) -
+                        destination.localPositionOf(source, Offset.Zero)
+                } else dragAmount
+                onDrag(size, amount)
             }
-        ) { change, dragAmount ->
-            onDrag(size, dragAmount)
         }
-    }
 
     fun press() {
         velocityTracker.resetTracking()
@@ -117,10 +138,10 @@ class DampedDragAnimation(
         }
     }
 
-    fun animateToValue(value: Float) {
+    fun animateToValue(value: Float, animatePress: Boolean = true) {
         animationScope.launch {
             mutatorMutex.mutate {
-                press()
+                if (animatePress) press()
                 val targetValue = value.coerceIn(valueRange)
                 launch { valueAnimation.animateTo(targetValue, valueAnimationSpec) }
                 if (velocity != 0f) {

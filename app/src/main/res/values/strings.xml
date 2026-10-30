@@ -94,6 +94,7 @@
     <string name="title_switch_account_long_press">长按切换账号</string>
     <string name="toast_exit_account_success">退出登录成功，请重新登录</string>
     <string name="button_cancel">取消</string>
+    <string name="button_add">添加</string>
     <string name="title_delete">删除</string>
     <string name="tip_lz">楼主</string>
     <string name="title_auto_sign_time">自动签到时间</string>
@@ -414,6 +415,7 @@
     <string name="block_type_keywords">关键词</string>
     <string name="block_type_user">用户</string>
     <string name="tip_add_block">可用空格分隔多个关键词，含有全部关键词的内容将会被屏蔽</string>
+    <string name="title_add_block_hint">输入屏蔽词</string>
     <string name="desc_download_pic">下载图片</string>
     <string name="hot_topic_rank">话题榜</string>
     <string name="topic_tag_hot">热</string>
@@ -571,6 +573,19 @@
     <string name="title_theme_color">主题色彩</string>
     <string name="title_theme_more">更多</string>
     <string name="title_theme_custom">自定义</string>
+    <string name="title_accent_color">强调色</string>
+    <string name="title_theme_accent_default">默认</string>
+    <string name="title_theme_accent_custom">自定</string>
+    <string name="title_follow_system_color">跟随系统取色</string>
+    <string name="summary_follow_system_color">使用系统壁纸颜色生成主题（Android 12+）</string>
+    <string name="title_theme_mode_hint">跟随系统会根据设备外观自动切换浅色和深色主题。</string>
+    <string name="action_done">完成</string>
+    <string name="color_picker_grid">网格</string>
+    <string name="color_picker_spectrum">光谱</string>
+    <string name="color_picker_sliders">滑块</string>
+    <string name="color_picker_opacity">不透明度</string>
+    <string name="title_theme_color_picker">选择主题色</string>
+    <string name="title_add_regex">作为正则表达式</string>
     <string name="title_dynamic_theme">动态取色</string>
     <string name="desc_night_theme">夜间主题</string>
     <string name="settings_image_darken_when_night_mode">夜间模式压暗缩略图</string>

@@ -14,6 +14,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.GraphicsLayerScope
+import androidx.compose.ui.graphics.Matrix
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.layer.CompositingStrategy
@@ -264,6 +265,56 @@ class CrossWindowBackdrop(
 @Composable
 fun rememberCrossWindowBackdrop(backdrop: Backdrop): Backdrop = remember(backdrop) {
     if (backdrop is LayerBackdrop) CrossWindowBackdrop(backdrop) else backdrop
+}
+
+/** Samples from a stable host while only the glass outline follows its animated layer. */
+@Composable
+fun rememberStationaryBackdrop(
+    backdrop: Backdrop,
+    samplingCoordinates: () -> LayoutCoordinates?,
+): Backdrop {
+    val source = rememberCrossWindowBackdrop(backdrop)
+    return remember(source, samplingCoordinates) { StationaryBackdrop(source, samplingCoordinates) }
+}
+
+private class StationaryBackdrop(
+    private val source: Backdrop,
+    private val samplingCoordinates: () -> LayoutCoordinates?,
+) : Backdrop {
+    private val layerScope = GraphicsLayerBlockScope()
+    private val inverseLayer = Matrix()
+
+    override val isCoordinatesDependent: Boolean get() = true
+
+    override fun DrawScope.drawBackdrop(
+        density: Density,
+        coordinates: LayoutCoordinates?,
+        layerBlock: (GraphicsLayerScope.() -> Unit)?,
+    ) {
+        val host = samplingCoordinates()?.takeIf { it.isAttached } ?: return
+        inverseLayer.reset()
+        if (layerBlock != null) {
+            // 采样时按实时动画参数求值，避免读到上一帧的缩放或移动中的轴心。
+            layerScope.reset(density, Size(host.size.width.toFloat(), host.size.height.toFloat()))
+            layerBlock(layerScope)
+            inverseLayer.resetToPivotedTransform(
+                pivotX = layerScope.size.width * layerScope.transformOrigin.pivotFractionX,
+                pivotY = layerScope.size.height * layerScope.transformOrigin.pivotFractionY,
+                translationX = layerScope.translationX,
+                translationY = layerScope.translationY,
+                rotationX = layerScope.rotationX,
+                rotationY = layerScope.rotationY,
+                rotationZ = layerScope.rotationZ,
+                scaleX = layerScope.scaleX,
+                scaleY = layerScope.scaleY,
+            )
+            inverseLayer.invert()
+        }
+        withTransform({ transform(inverseLayer) }) {
+            // 宿主在动画层之外，传 null 避免源背景重复应用一次逆变换。
+            with(source) { drawBackdrop(density, host, null) }
+        }
+    }
 }
 
 /** Share a live, flattened player source between modal glass and its small glass controls. */
